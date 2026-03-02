@@ -1,17 +1,13 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { LoginForm } from "@/components/LoginForm";
+import { SignUpForm } from "@/components/SignUpForm";
 
 export const metadata = {
-  title: "Sign in — TripForge",
+  title: "Create account — TripForge",
 };
 
-interface LoginPageProps {
-  searchParams: { error?: string; callbackUrl?: string };
-}
-
-export default async function LoginPage({ searchParams }: LoginPageProps) {
+export default async function SignUpPage() {
   const session = await getServerSession(authOptions);
   if (session) redirect("/dashboard");
 
@@ -21,15 +17,12 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         {/* Branding */}
         <div className="mb-8 text-center">
           <h1 className="font-serif text-3xl font-semibold text-ink">TripForge</h1>
-          <p className="mt-1 text-sm text-muted">Sign in to your account</p>
+          <p className="mt-1 text-sm text-muted">Create your account to get started</p>
         </div>
 
         {/* Form card */}
         <div className="rounded-2xl bg-parchment p-8 shadow-card">
-          <LoginForm
-            initialError={searchParams.error}
-            callbackUrl={searchParams.callbackUrl ?? "/dashboard"}
-          />
+          <SignUpForm />
         </div>
       </div>
     </div>

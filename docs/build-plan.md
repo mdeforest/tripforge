@@ -66,7 +66,7 @@ MAPBOX_ACCESS_TOKEN=
 
 ---
 
-### Phase 2: Auth Flow
+### Phase 2: Auth Flow ✅
 
 **Goal:** Working sign up, login, and dashboard.
 
@@ -280,7 +280,7 @@ Tasks:
 
 ---
 
-## Known Gotchas (Learned in Phase 1)
+## Known Gotchas
 
 > Update this section as new issues are discovered.
 
@@ -313,6 +313,19 @@ A `@import url(...)` at the top of a CSS file blocks Tailwind's CSS compiler, ca
 
 **Google OAuth consent screen**
 While you're the only user, add yourself as a Test User in the Google Cloud Console (APIs & Services → OAuth consent screen → Test users) so you can sign in without publishing the app.
+
+**`getByLabelText(/password/i)` matches the toggle button too**
+A password field with a show/hide toggle button (`aria-label="Show password"`) means `getByLabelText(/password/i)` finds two elements and throws. Use the exact label text instead: `screen.getByLabelText("Password")`.
+
+**`new Date("YYYY-MM-DD")` is midnight UTC — previous day in US timezones**
+`new Date("2025-07-01")` = midnight UTC = Jun 30 in Pacific time. Assertions like `expect(screen.getByText(/Jul 1/))` will fail west of UTC. Fix: use midday UTC to make dates timezone-safe in tests: `new Date("2025-07-15T12:00:00.000Z")`.
+
+**Testing async server components**
+To test Next.js server components (that use `getServerSession` and `prisma`):
+1. `vi.mock("next-auth", () => ({ getServerSession: vi.fn() }))` — mock the server-side import, not `next-auth/react`
+2. `vi.mock("@/lib/auth", () => ({ authOptions: {} }))` — prevents auth config from importing providers
+3. `const { default: Page } = await import("@/app/...")` then `const jsx = await Page(); render(jsx)`
+4. When the mocked `redirect()` doesn't throw, code after it runs and may TypeError — wrap `await Page()` in try/catch for redirect tests
 
 ---
 
