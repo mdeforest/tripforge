@@ -37,12 +37,15 @@ Tasks:
 - Initialize Next.js 14 project with TypeScript and App Router
 - Set up Tailwind CSS with a warm, Airbnb-inspired design system (earthy tones, rounded corners, generous spacing).
 - Use tripforge-prototype.jsx as the visual reference for all UI — match the colors, fonts, and component styles exactly.
-- Configure Prisma with PostgreSQL connection (Supabase)
-- Create all DB schema migrations (Users, Trips, Days, Stops, ChecklistItems)
-- Set up NextAuth.js with Google OAuth + Credentials providers
-- Create base layout with authenticated route guards
+- Configure Prisma v5 with PostgreSQL connection (Supabase Session pooler)
+- Create all DB schema migrations (Users, Trips, Days, Stops, ChecklistItems + NextAuth tables)
+- Set up NextAuth.js v4 with Google OAuth + Credentials providers (JWT sessions, 30-day)
+- Route groups: `(app)` for authenticated pages with NavBar; `(auth)` for login/signup without nav
+- Middleware protects `/dashboard/*` and `/trips/*` via JWT edge check (no DB round-trip)
+- `POST /api/auth/signup` with bcrypt + zod validation (NextAuth handles sign-in separately)
 - Create `.env.example` with all required env vars
 - Set up base error boundary and loading states
+- Add `serverComponentsExternalPackages` in `next.config.mjs` for Prisma + bcryptjs
 - Set up Vitest + React Testing Library testing framework
 
 **Tests (Phase 1):**
@@ -277,15 +280,52 @@ Tasks:
 
 ---
 
+## Known Gotchas (Learned in Phase 1)
+
+> Update this section as new issues are discovered.
+
+**Prisma version — use v5, not v7**
+Prisma v7 (the npm default as of early 2026) is incompatible with `@auth/prisma-adapter` and removes `url` from `schema.prisma`. Pin to `prisma@^5` and `@prisma/client@^5`.
+
+**Prisma + Next.js webpack hang**
+Without `serverComponentsExternalPackages`, webpack tries to bundle `@prisma/client` (which includes a native binary) and hangs indefinitely on first compile. Fix in `next.config.mjs`:
+```js
+experimental: {
+  serverComponentsExternalPackages: ["@prisma/client", "bcryptjs", "@auth/prisma-adapter"],
+}
+```
+
+**Supabase DATABASE_URL — use Session pooler**
+The direct connection (`db.[ref].supabase.co:5432`) is blocked on newer Supabase projects. Use the **Session Mode** pooler URL from Supabase → Settings → Database → Connection pooling:
+```
+postgresql://postgres.[ref]:[PASSWORD]@aws-0-[region].pooler.supabase.com:5432/postgres
+```
+Session mode supports prepared statements and works with Prisma Migrate. Do NOT use the Transaction pooler (port 6543) — it breaks migrations.
+
+**Stale `.next` cache hang**
+If `npm run dev` hangs silently (no output at all) after a failed build or file move, the `.next` cache is corrupted. Fix: `rm -rf .next && npm run dev`.
+
+**npm install can break nested dependencies**
+Running `npm install` for new packages can reorganize the dep tree and drop nested packages (e.g., `openid-client/node_modules/object-hash`). If you get `ENOENT` errors pointing inside `node_modules`, run: `rm -rf node_modules && npm install && npx prisma generate`.
+
+**Google Fonts — use `<link>` not CSS `@import`**
+A `@import url(...)` at the top of a CSS file blocks Tailwind's CSS compiler, causing slow/hanging compilation. Load Google Fonts via `<link>` tags in `app/layout.tsx` instead.
+
+**Google OAuth consent screen**
+While you're the only user, add yourself as a Test User in the Google Cloud Console (APIs & Services → OAuth consent screen → Test users) so you can sign in without publishing the app.
+
+---
+
 ## Manual Setup Required
 
 The following require manual setup outside of code:
 
-1. **Supabase project** — Create at supabase.com, get `DATABASE_URL`
-2. **Google OAuth** — Create OAuth 2.0 credentials at console.cloud.google.com. Add `http://localhost:3000/api/auth/callback/google` (dev) and your production URL as redirect URIs.
+1. **Supabase project** — Create at supabase.com. Get the **Session pooler** connection string from Settings → Database → Connection pooling → Session mode.
+2. **Google OAuth** — Create OAuth 2.0 credentials at console.cloud.google.com. Add `http://localhost:3000/api/auth/callback/google` (dev) and your production URL as redirect URIs. Add yourself as a Test User on the consent screen.
 3. **Anthropic API key** — Get at console.anthropic.com
 4. **Mapbox access token** — Get at account.mapbox.com
 5. **Vercel account** — Connect GitHub repo for deployment
+6. **Run migrations** — After setting `DATABASE_URL`, run: `npx prisma migrate dev --name init && npx prisma generate`
 
 ---
 

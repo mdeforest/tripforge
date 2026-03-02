@@ -183,13 +183,17 @@ Self-planners invest significant time building detailed itineraries in documents
 ## 7. Information Architecture
 
 **Pages:**
-- `/` — Landing page / marketing
-- `/login` — Login (email or Google)
-- `/signup` — Sign up
-- `/dashboard` — List of user's trips
-- `/trips/new` — Upload itinerary flow
-- `/trips/[id]` — Trip companion app (tabs: Itinerary, Map, Chat, Checklist)
+- `/` — Redirects to `/dashboard` (authenticated) or `/login` (unauthenticated). No landing page in v1.
+- `/login` — Login (email or Google) — in `(auth)` route group, no NavBar
+- `/signup` — Sign up — in `(auth)` route group, no NavBar
+- `/dashboard` — List of user's trips — in `(app)` route group, has NavBar
+- `/trips/new` — Upload itinerary flow — in `(app)` route group
+- `/trips/[id]` — Trip companion app (tabs: Itinerary, Map, Chat, Checklist) — in `(app)` route group
 - `/trips/[id]/review` — Review parsed itinerary before confirming
+
+**Route groups:**
+- `(app)/` — Authenticated pages; shares layout with NavBar. Middleware redirects unauthenticated users to `/login`.
+- `(auth)/` — Login/signup pages; bare layout with no nav.
 
 **Navigation inside trip companion:**
 - Bottom tab bar (mobile-style): Itinerary | Map | Chat | Checklist
@@ -199,62 +203,69 @@ Self-planners invest significant time building detailed itineraries in documents
 
 ## 8. Data Model
 
+> IDs are `cuid()` strings (not UUIDs). All FK relations use `onDelete: Cascade`.
+
 ### Users
 | Field | Type | Notes |
 |---|---|---|
-| id | UUID | Primary key |
+| id | cuid string | Primary key |
 | email | string | Unique |
 | password_hash | string | Nullable (null if OAuth only) |
-| google_id | string | Nullable |
+| google_id | string | Nullable, unique |
 | name | string | |
-| created_at | timestamp | |
+| created_at | timestamp | Auto-set |
+| emailVerified | timestamp | Nullable — NextAuth field |
+| image | string | Nullable — NextAuth field |
 
 ### Trips
 | Field | Type | Notes |
 |---|---|---|
-| id | UUID | Primary key |
-| user_id | UUID | FK → Users |
+| id | cuid string | Primary key |
+| user_id | cuid string | FK → Users |
 | name | string | e.g., "Italy 2025" |
 | destination | string | Primary destination |
-| start_date | date | |
-| end_date | date | |
+| start_date | date | Nullable |
+| end_date | date | Nullable |
 | raw_input | text | Original document text |
 | parsed_data | JSONB | Full structured itinerary |
 | packing_list | JSONB | AI-generated + user edits |
-| created_at | timestamp | |
+| created_at | timestamp | Auto-set |
 
 ### Days (normalized from parsed_data for querying)
 | Field | Type | Notes |
 |---|---|---|
-| id | UUID | Primary key |
-| trip_id | UUID | FK → Trips |
+| id | cuid string | Primary key |
+| trip_id | cuid string | FK → Trips |
 | day_number | integer | 1-indexed |
-| date | date | Nullable |
+| date | date | Nullable — undated itineraries show "Day N" |
 | title | string | e.g., "Arrival in Rome" |
 
 ### Stops
 | Field | Type | Notes |
 |---|---|---|
-| id | UUID | Primary key |
-| day_id | UUID | FK → Days |
+| id | cuid string | Primary key |
+| day_id | cuid string | FK → Days |
 | name | string | |
-| type | enum | hotel, restaurant, activity, transport, other |
-| time | string | e.g., "10:30 AM" — stored as string for flexibility |
+| type | StopType enum | hotel \| restaurant \| activity \| transport \| other |
+| time | string | Nullable — e.g., "10:30 AM", stored as string for flexibility |
 | address | string | Nullable |
-| lat | float | Nullable — geocoded |
-| lng | float | Nullable — geocoded |
+| lat | float | Nullable — geocoded by Mapbox on trip creation |
+| lng | float | Nullable — geocoded by Mapbox on trip creation |
 | notes | text | Nullable |
 | order | integer | Display order within day |
 
 ### ChecklistItems
 | Field | Type | Notes |
 |---|---|---|
-| id | UUID | Primary key |
-| trip_id | UUID | FK → Trips |
+| id | cuid string | Primary key |
+| trip_id | cuid string | FK → Trips |
 | category | string | e.g., "Clothing" |
 | label | string | e.g., "Rain jacket" |
 | checked | boolean | Default false |
 | is_custom | boolean | User-added vs AI-generated |
+
+### NextAuth tables (managed by `@auth/prisma-adapter`)
+`accounts`, `sessions`, `verification_tokens` — standard NextAuth schema, not modified.
 
 ---
 
@@ -262,14 +273,17 @@ Self-planners invest significant time building detailed itineraries in documents
 
 | Layer | Choice | Reason |
 |---|---|---|
-| Framework | Next.js 14 (App Router) | Full-stack React, great for SSR + API routes, excellent Vercel integration |
-| Language | TypeScript | Type safety for complex data structures (itinerary JSON) |
+| Framework | Next.js 14.2 (App Router) | Full-stack React, great for SSR + API routes, excellent Vercel integration |
+| Language | TypeScript (strict) | Type safety for complex data structures (itinerary JSON) |
 | Database | PostgreSQL (via Supabase) | Reliable relational DB with JSONB support; Supabase gives free tier + auth helpers |
-| ORM | Prisma | Type-safe DB queries, great DX, easy migrations |
-| Auth | NextAuth.js | Handles both email/password and Google OAuth cleanly |
-| AI | Anthropic Claude API | Itinerary parsing + chat assistant |
+| ORM | Prisma **v5** | Type-safe DB queries, great DX, easy migrations. Use v5 — v7 is incompatible with `@auth/prisma-adapter`. |
+| Auth | NextAuth.js v4 + `@auth/prisma-adapter` | Handles both email/password (bcrypt) and Google OAuth; JWT sessions |
+| Validation | Zod | Schema validation for all API request bodies |
+| AI | Anthropic Claude API (`claude-sonnet-4-6`) | Itinerary parsing + chat assistant |
 | Maps | Mapbox GL JS | Better free tier than Google Maps for personal projects |
-| Styling | Tailwind CSS | Rapid UI development |
+| Styling | Tailwind CSS | Rapid UI development; custom warm design system in `tailwind.config.ts` |
+| Icons | Lucide React | Consistent icon set; stop-type icons in itinerary browser |
+| Testing | Vitest + React Testing Library | Fast, ESM-native unit/component tests |
 | PWA / Offline | next-pwa + Workbox | Service worker generation for offline support |
 | Hosting | Vercel | Zero-config Next.js deployment |
 | File parsing | pdf-parse (PDF), mammoth (DOCX) | Extract text from uploaded files server-side |
@@ -281,10 +295,12 @@ Self-planners invest significant time building detailed itineraries in documents
 ### Auth
 **POST /api/auth/signup**
 ```
-Request: { email: string, password: string, name: string }
-Response: { user: User, token: string }
-Errors: 400 (validation), 409 (email exists)
+Request: { name: string, email: string, password: string }
+Response: { user: { id, name, email, created_at } }   ← no token; client calls signIn() after
+Errors: 400 VALIDATION_ERROR, 409 EMAIL_EXISTS, 500 INTERNAL_ERROR
 ```
+
+> All NextAuth routes (`/api/auth/signin`, `/api/auth/session`, etc.) are handled automatically by the `[...nextauth]` catch-all route. No custom implementation needed.
 
 ### Trips
 **GET /api/trips**
