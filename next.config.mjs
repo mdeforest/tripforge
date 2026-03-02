@@ -8,6 +8,9 @@ const nextConfig = {
       "@prisma/client",
       "bcryptjs",
       "@auth/prisma-adapter",
+      "pdf-parse",
+      "mammoth",
+      "@anthropic-ai/sdk",
     ],
   },
 };

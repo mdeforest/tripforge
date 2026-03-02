@@ -87,7 +87,7 @@ Tasks:
 
 ---
 
-### Phase 3: Itinerary Upload & AI Parsing
+### Phase 3: Itinerary Upload & AI Parsing ✅
 
 **Goal:** Users can upload an itinerary and get structured data back from Claude.
 
@@ -109,7 +109,7 @@ Tasks:
 **Tests (Phase 3):**
 - `tests/unit/api/trips-parse.test.ts` — parse endpoint: text input, file input, Google Docs URL, Claude timeout, malformed Claude response, empty text
 - `tests/unit/api/trips-create.test.ts` — create trip: success, missing fields, auth guard
-- `tests/unit/lib/parseItinerary.test.ts` — Claude response parsing utility: valid JSON, invalid JSON, missing fields
+- `tests/unit/lib/parseItinerary.test.ts` — Claude response parsing utility: valid JSON, invalid JSON, missing fields, `max_tokens` truncation triggering chunked parsing, chunk merge
 - `tests/unit/components/UploadForm.test.tsx` — tab switching, file drag-and-drop, URL input, submit states
 - `tests/unit/components/ReviewTrip.test.tsx` — renders parsed summary, confirm button, back button
 
@@ -326,6 +326,36 @@ To test Next.js server components (that use `getServerSession` and `prisma`):
 2. `vi.mock("@/lib/auth", () => ({ authOptions: {} }))` — prevents auth config from importing providers
 3. `const { default: Page } = await import("@/app/...")` then `const jsx = await Page(); render(jsx)`
 4. When the mocked `redirect()` doesn't throw, code after it runs and may TypeError — wrap `await Page()` in try/catch for redirect tests
+
+**Mocking ES classes with `vi.mock` — use a class, not an arrow function**
+When a module exports a class (e.g. `@anthropic-ai/sdk` exports `class Anthropic`), you must mock it with a class or regular constructor function — NOT an arrow function. Arrow functions cannot be called with `new` and will throw `TypeError: X is not a constructor`. Correct pattern:
+```ts
+vi.mock("@anthropic-ai/sdk", () => ({
+  default: class {
+    messages = { create: mockMessagesCreate };
+  },
+}));
+```
+Instance fields (like `messages = { create: mockFn }`) are evaluated at instantiation time, so `mockFn` will be fully initialized by then even though `vi.mock` is hoisted.
+
+**Claude `max_tokens` must be set to 8192 for long itineraries**
+The default `max_tokens: 4096` is only half of `claude-sonnet-4-6`'s output limit and will truncate the JSON for multi-week itineraries. Set `max_tokens: 8192`. If the response still hits the limit (`stop_reason === "max_tokens"`), `parseItinerary()` automatically splits the raw text at day-boundary markers (`Day N`, weekday names), parses each chunk in parallel, and merges the results. Chunk size is capped at 12,000 chars (~3K input tokens) to keep output well within budget.
+
+**`pdf-parse` v2 has a class-based API (not the `pdfParse(buffer)` function from v1)**
+v1: `const pdfParse = require("pdf-parse"); await pdfParse(buffer)` → function call
+v2: `const { PDFParse } = require("pdf-parse"); await new PDFParse({ data: buffer }).getText()`
+Also: dynamic `import("pdf-parse").default` returns `undefined` under Next.js; use `require()` instead.
+
+**`request.formData()` hangs in jsdom when body contains a `File` object**
+jsdom cannot serialize/deserialize multipart binary data (File objects in FormData). `new Request(url, { body: formData })` followed by `request.formData()` will hang indefinitely when the FormData contains a File. Fix: mock the Request directly so `formData()` returns the FormData without parsing:
+```ts
+function makeFormRequest(fields: Record<string, string | File>): Request {
+  const formData = new FormData();
+  for (const [key, value] of Object.entries(fields)) formData.set(key, value);
+  return { formData: async () => formData } as unknown as Request;
+}
+```
+String-only FormData fields work fine with a real `Request`, but using the mock is safe for all cases.
 
 ---
 
