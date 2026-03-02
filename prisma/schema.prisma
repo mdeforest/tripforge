@@ -1,0 +1,174 @@
+// learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USERS
+// Supports both email/password and Google OAuth sign-in.
+// password_hash and google_id are both nullable to handle either flow.
+// ─────────────────────────────────────────────────────────────────────────────
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password_hash String?
+  google_id     String?   @unique
+  name          String
+  created_at    DateTime  @default(now())
+
+  trips Trip[]
+
+  // NextAuth adapter fields
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TRIPS
+// Core record for each user's uploaded itinerary.
+// parsed_data (JSONB) holds the full structured itinerary from Claude.
+// packing_list (JSONB) holds AI-generated + user-edited checklist items.
+// ─────────────────────────────────────────────────────────────────────────────
+model Trip {
+  id          String    @id @default(cuid())
+  user_id     String
+  name        String
+  destination String
+  start_date  DateTime?
+  end_date    DateTime?
+  raw_input   String    @db.Text
+  parsed_data Json?
+  packing_list Json?
+  created_at  DateTime  @default(now())
+
+  user           User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  days           Day[]
+  checklist_items ChecklistItem[]
+
+  @@index([user_id])
+  @@map("trips")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DAYS
+// Normalized from parsed_data so we can query day-by-day efficiently.
+// date is nullable — itineraries without specific dates are shown as "Day N".
+// ─────────────────────────────────────────────────────────────────────────────
+model Day {
+  id         String    @id @default(cuid())
+  trip_id    String
+  day_number Int
+  date       DateTime?
+  title      String
+
+  trip  Trip   @relation(fields: [trip_id], references: [id], onDelete: Cascade)
+  stops Stop[]
+
+  @@index([trip_id])
+  @@map("days")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STOPS
+// Individual activities, restaurants, hotels, etc. within a Day.
+// lat/lng are null until geocoded by the Mapbox Geocoding API.
+// time is stored as a string (e.g. "10:30 AM") for formatting flexibility.
+// ─────────────────────────────────────────────────────────────────────────────
+enum StopType {
+  hotel
+  restaurant
+  activity
+  transport
+  other
+}
+
+model Stop {
+  id      String   @id @default(cuid())
+  day_id  String
+  name    String
+  type    StopType @default(other)
+  time    String?
+  address String?
+  lat     Float?
+  lng     Float?
+  notes   String?  @db.Text
+  order   Int
+
+  day Day @relation(fields: [day_id], references: [id], onDelete: Cascade)
+
+  @@index([day_id])
+  @@map("stops")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CHECKLIST ITEMS
+// AI-generated packing list items + user-added custom items.
+// is_custom distinguishes AI-generated from user-added items.
+// ─────────────────────────────────────────────────────────────────────────────
+model ChecklistItem {
+  id        String  @id @default(cuid())
+  trip_id   String
+  category  String
+  label     String
+  checked   Boolean @default(false)
+  is_custom Boolean @default(false)
+
+  trip Trip @relation(fields: [trip_id], references: [id], onDelete: Cascade)
+
+  @@index([trip_id])
+  @@map("checklist_items")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NEXTAUTH TABLES
+// Required by @auth/prisma-adapter for session/account management.
+// ─────────────────────────────────────────────────────────────────────────────
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}

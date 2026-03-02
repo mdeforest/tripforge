@@ -2,26 +2,82 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #FAF6EE;   /* cream */
+    --foreground: #1C1208;   /* ink */
   }
-}
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-cream text-ink font-sans antialiased;
+    min-height: 100dvh;
+  }
+
+  /* Warm scrollbar */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #F5EDD9; /* parchment */
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #D9C49A; /* parchment-deep */
+    border-radius: 2px;
+  }
+
+  /* Focus ring using brand color */
+  :focus-visible {
+    @apply outline-none ring-2 ring-rust ring-offset-2 ring-offset-cream;
+  }
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  /* Font family shortcuts matching prototype */
+  .font-display {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+  }
+
+  /* Animations from prototype */
+  .animate-fade-up {
+    animation: fadeUp 0.5s ease forwards;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease forwards;
+  }
+
+  /* Shimmer skeleton loading */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      #EAD9BC 25%,
+      #F5EDD9 50%,
+      #EAD9BC 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+
+  /* Safe area padding for mobile notch/home indicator */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
   }
 }
