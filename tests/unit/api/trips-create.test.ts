@@ -17,11 +17,13 @@ const VALID_PARSED_DATA = {
   destination: "Rome, Italy",
   startDate: "2025-07-01",
   endDate: "2025-07-14",
+  notes: null,
   days: [
     {
       dayNumber: 1,
       date: "2025-07-01",
       title: "Arrival",
+      notes: null,
       stops: [
         {
           name: "Colosseum",

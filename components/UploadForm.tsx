@@ -17,11 +17,14 @@ const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
 ];
 
 const STAGES = [
-  { label: "Uploading your itinerary",                threshold: 0 },
-  { label: "Extracting document text",                threshold: 3_000 },
-  { label: "AI is working its magic",                 threshold: 8_000 },
-  { label: "Parsing your adventure into sections",    threshold: 25_000 },
-  { label: "Almost ready to explore",                 threshold: 50_000 },
+  { label: "Uploading your itinerary",              threshold: 0 },
+  { label: "Reading the document",                  threshold: 2_000 },
+  { label: "Identifying days and stops",            threshold: 5_000 },
+  { label: "Structuring your itinerary",            threshold: 10_000 },
+  { label: "Building your day-by-day plan",         threshold: 16_000 },
+  { label: "Looking up addresses and locations",    threshold: 22_000 },
+  { label: "Pinning stops to the map",              threshold: 30_000 },
+  { label: "Almost ready to explore",               threshold: 42_000 },
 ];
 
 /**
@@ -151,7 +154,7 @@ export function UploadForm({ onParsed }: UploadFormProps) {
             {STAGES[displayedStage].label}&hellip;
           </p>
 
-          {loadingStage >= 3 && (
+          {loadingStage >= 5 && (
             <p className="max-w-xs text-xs text-muted">
               Long itineraries can take a couple minutes. Hang tight!
             </p>

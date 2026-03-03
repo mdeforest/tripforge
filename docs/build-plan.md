@@ -97,59 +97,28 @@ Tasks:
   - PDF: `pdf-parse` library
   - DOCX: `mammoth` library
   - Google Docs: server-side fetch of public doc export URL
-- `/api/trips/parse` endpoint that:
+- `/api/trips/parse` endpoint — two-step AI pipeline:
   1. Extracts raw text from the input
-  2. Calls Claude API with structured extraction prompt
-  3. Returns parsed itinerary JSON
-- Claude parsing prompt (see prompt below)
+  2. **Step 1 — Parse:** `parseItinerary()` calls Claude with a structured extraction prompt; auto-chunks large inputs at day boundaries and merges results; `address` rule enforces real geographic addresses only (no notes/descriptions)
+  3. **Step 2 — Enrich:** `enrichAddresses()` sends all stops to Claude in parallel chunks of 40; Claude decides which need a real address and returns only the patches to apply; falls back silently to the original if anything fails
+  4. Returns enriched itinerary JSON + raw text
+- Prompts live in `lib/prompts/` — edit there to tune extraction quality without touching logic
 - "Review Your Trip" page showing parsed summary (trip name, dates, destination, day count, stop count)
 - Confirm → saves trip to DB (creates Trip, Days, Stops rows)
-- Error states for unreadable files, failed parsing
+- Error states for unreadable files, failed parsing; enrichment failure returns unenriched itinerary
+- Loading UI cycles through 8 descriptive stages including "Looking up addresses and locations" and "Pinning stops to the map"
 
 **Tests (Phase 3):**
 - `tests/unit/api/trips-parse.test.ts` — parse endpoint: text input, file input, Google Docs URL, Claude timeout, malformed Claude response, empty text
 - `tests/unit/api/trips-create.test.ts` — create trip: success, missing fields, auth guard
 - `tests/unit/lib/parseItinerary.test.ts` — Claude response parsing utility: valid JSON, invalid JSON, missing fields, `max_tokens` truncation triggering chunked parsing, chunk merge
+- `tests/unit/lib/enrichAddresses.test.ts` — address enrichment: patches applied, addresses preserved, chunking + merge across chunk boundaries, truncation fallback, note truncation, API failure fallback
 - `tests/unit/components/UploadForm.test.tsx` — tab switching, file drag-and-drop, URL input, submit states
 - `tests/unit/components/ReviewTrip.test.tsx` — renders parsed summary, confirm button, back button
 
-**Claude parsing prompt template:**
-```
-You are an expert travel itinerary parser. Extract structured data from the following itinerary document and return ONLY valid JSON in this exact format:
-
-{
-  "tripName": "string",
-  "destination": "string (primary destination)",
-  "startDate": "YYYY-MM-DD or null",
-  "endDate": "YYYY-MM-DD or null",
-  "days": [
-    {
-      "dayNumber": 1,
-      "date": "YYYY-MM-DD or null",
-      "title": "string",
-      "stops": [
-        {
-          "name": "string",
-          "type": "hotel | restaurant | activity | transport | other",
-          "time": "string or null",
-          "address": "string or null",
-          "notes": "string or null",
-          "order": 1
-        }
-      ]
-    }
-  ]
-}
-
-Return only the JSON object. No explanations. No markdown.
-
-ITINERARY:
-{rawText}
-```
-
 ---
 
-### Phase 4: Trip Companion — Itinerary Browser
+### Phase 4: Trip Companion — Itinerary Browser ✅
 
 **Goal:** The core trip companion experience — browsable day-by-day itinerary.
 
@@ -340,6 +309,12 @@ Instance fields (like `messages = { create: mockFn }`) are evaluated at instanti
 
 **Claude `max_tokens` must be set to 8192 for long itineraries**
 The default `max_tokens: 4096` is only half of `claude-sonnet-4-6`'s output limit and will truncate the JSON for multi-week itineraries. Set `max_tokens: 8192`. If the response still hits the limit (`stop_reason === "max_tokens"`), `parseItinerary()` automatically splits the raw text at day-boundary markers (`Day N`, weekday names), parses each chunk in parallel, and merges the results. Chunk size is capped at 12,000 chars (~3K input tokens) to keep output well within budget.
+
+**Address enrichment is chunked to avoid output-token truncation**
+`enrichAddresses()` sends ALL stops to Claude (not just null-address ones — Claude decides what needs fixing). For large trips with 100+ stops, the patch array can exceed 4096 output tokens if sent in one call. The function splits stops into chunks of 40, runs them in parallel via `Promise.all`, and merges the results. If any chunk fails or is truncated (`stop_reason === "max_tokens"`), the entire enrichment falls back to the original itinerary. Stop notes are truncated to 200 chars in the prompt to keep input size manageable.
+
+**Parse prompt rule: `address` must be a real geographic address**
+Without an explicit rule, the parse model sometimes copies description text, directions, or review notes into the `address` field (e.g. `"Drive to Pisa, see the Leaning Tower"`). Rule 7 in `lib/prompts/parse-itinerary.ts` enforces: "address = a real geographic address or null — NEVER put descriptions, notes, directions, reviews, or opinions into the address field." This reduces the enrichment workload and keeps address data clean from the start.
 
 **`pdf-parse` v2 has a class-based API (not the `pdfParse(buffer)` function from v1)**
 v1: `const pdfParse = require("pdf-parse"); await pdfParse(buffer)` → function call

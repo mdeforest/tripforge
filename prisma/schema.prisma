@@ -70,6 +70,7 @@ model Day {
   day_number Int
   date       DateTime?
   title      String
+  notes      String?   @db.Text
 
   trip  Trip   @relation(fields: [trip_id], references: [id], onDelete: Cascade)
   stops Stop[]
@@ -102,6 +103,7 @@ model Stop {
   lat     Float?
   lng     Float?
   notes   String?  @db.Text
+  options Json?
   order   Int
 
   day Day @relation(fields: [day_id], references: [id], onDelete: Cascade)

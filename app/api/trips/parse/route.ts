@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { extractRawText, ExtractionError } from "@/lib/extractText";
 import { parseItinerary, ParseError } from "@/lib/parseItinerary";
+import { enrichAddresses } from "@/lib/enrichAddresses";
 import { NextResponse } from "next/server";
 
 /**
@@ -71,19 +72,24 @@ export async function POST(request: Request) {
     throw err;
   }
 
-  // Step 2: Call Claude to parse the itinerary
+  // Step 2: Parse the itinerary via the configured AI provider
+  const provider = process.env.AI_PROVIDER ?? "claude";
+  console.log(`[parse] Using AI provider: ${provider}`);
   try {
-    const parsedData = await parseItinerary(rawText);
+    const parsed = await parseItinerary(rawText);
+    const parsedData = await enrichAddresses(parsed);
     return NextResponse.json({ parsedData, rawText });
   } catch (err) {
     if (err instanceof ParseError) {
+      console.error("[parse] ParseError:", err.message);
       return NextResponse.json(
         { error: "Couldn't parse the itinerary. Try again or paste the text manually.", code: "PARSE_FAILED" },
         { status: 422 }
       );
     }
     // Network errors, timeouts, etc.
-    const message = err instanceof Error ? err.message : "";
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[parse] Unexpected error:", message);
     if (message.includes("timeout") || message.includes("ETIMEDOUT") || message.includes("network")) {
       return NextResponse.json(
         { error: "The AI is taking too long to respond. Try again in a moment.", code: "AI_TIMEOUT" },

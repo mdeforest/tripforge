@@ -49,6 +49,14 @@ export async function GET() {
 
 // ─── Zod schema for POST /api/trips ──────────────────────────────────────────
 
+const stopOptionSchema = z.object({
+  name: z.string().min(1),
+  type: z.enum(["restaurant", "activity"]),
+  address: z.string().nullable(),
+  notes: z.string().nullable(),
+  order: z.number().int().nonnegative(),
+});
+
 const stopSchema = z.object({
   name: z.string().min(1),
   type: z.enum(["hotel", "restaurant", "activity", "transport", "other"]),
@@ -56,12 +64,14 @@ const stopSchema = z.object({
   address: z.string().nullable(),
   notes: z.string().nullable(),
   order: z.number().int().nonnegative(),
+  options: z.array(stopOptionSchema).default([]),
 });
 
 const daySchema = z.object({
   dayNumber: z.number().int().positive(),
   date: z.string().nullable(),
   title: z.string().min(1),
+  notes: z.string().nullable(),
   stops: z.array(stopSchema),
 });
 
@@ -71,6 +81,7 @@ const createTripSchema = z.object({
     destination: z.string().min(1),
     startDate: z.string().nullable(),
     endDate: z.string().nullable(),
+    notes: z.string().nullable(),
     days: z.array(daySchema),
   }),
   rawText: z.string().min(1),
@@ -124,6 +135,7 @@ export async function POST(request: Request) {
             day_number: day.dayNumber,
             date: day.date ? new Date(day.date) : null,
             title: day.title,
+            notes: day.notes,
             stops: {
               create: day.stops.map((stop) => ({
                 name: stop.name,
@@ -132,6 +144,7 @@ export async function POST(request: Request) {
                 address: stop.address,
                 notes: stop.notes,
                 order: stop.order,
+                options: stop.options.length > 0 ? stop.options : undefined,
               })),
             },
           })),

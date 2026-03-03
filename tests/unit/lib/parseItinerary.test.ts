@@ -125,36 +125,66 @@ describe("parseItinerary", () => {
     await expect(parseItinerary("raw text")).rejects.toThrow(ParseError);
   });
 
-  // ── Chunked parsing (max_tokens fallback) ──────────────────────────────────
+  // ── Chunking (fallback + pre-emptive) ──────────────────────────────────────
 
-  it("retries in chunks when the first response hits max_tokens", async () => {
-    const day1 = {
+  it("pre-emptively chunks large inputs without an initial single call", async () => {
+    const chunk1 = {
       tripName: "Italy Adventure",
       destination: "Rome, Italy",
       startDate: "2025-07-01",
       endDate: null,
       days: [{ dayNumber: 1, date: "2025-07-01", title: "Day 1", stops: [] }],
     };
-    const day2 = {
-      tripName: "Italy Adventure",
-      destination: "Rome, Italy",
+    const chunk2 = {
+      tripName: "",
+      destination: "",
       startDate: null,
       endDate: "2025-07-14",
       days: [{ dayNumber: 2, date: "2025-07-02", title: "Day 2", stops: [] }],
     };
 
-    // Build input text that will split into two chunks at the "Day 2" boundary
+    // Input large enough that computeMaxTokens returns 8192 (>= ~31,568 chars)
+    const largeText =
+      "Day 1: Arrive in Rome\n".padEnd(31_600, "x") +
+      "\nDay 2: Visit Vatican";
+
+    mockMessagesCreate
+      .mockResolvedValueOnce(makeClaudeResponse(JSON.stringify(chunk1))) // chunk 1 (no initial call)
+      .mockResolvedValueOnce(makeClaudeResponse(JSON.stringify(chunk2))); // chunk 2
+
+    const result = await parseItinerary(largeText);
+
+    // Exactly 2 calls (chunks only, no wasted initial call)
+    expect(mockMessagesCreate).toHaveBeenCalledTimes(2);
+    expect(result.tripName).toBe("Italy Adventure");
+    expect(result.days).toHaveLength(2);
+  });
+
+  it("falls back to chunked parsing when single call is truncated", async () => {
+    const chunk1 = {
+      tripName: "Italy Adventure",
+      destination: "Rome, Italy",
+      startDate: "2025-07-01",
+      endDate: null,
+      days: [{ dayNumber: 1, date: "2025-07-01", title: "Day 1", stops: [] }],
+    };
+    const chunk2 = {
+      tripName: "",
+      destination: "",
+      startDate: null,
+      endDate: "2025-07-14",
+      days: [{ dayNumber: 2, date: "2025-07-02", title: "Day 2", stops: [] }],
+    };
+
+    // Build input that splits into two chunks at the "Day 2" boundary
     const longText =
       "Day 1: Arrive in Rome\n".padEnd(12_001, "x") +
       "\nDay 2: Visit Vatican";
 
     mockMessagesCreate
-      // First call: full text → truncated
-      .mockResolvedValueOnce(makeClaudeResponse("truncated", "max_tokens"))
-      // Chunk 1 call
-      .mockResolvedValueOnce(makeClaudeResponse(JSON.stringify(day1)))
-      // Chunk 2 call
-      .mockResolvedValueOnce(makeClaudeResponse(JSON.stringify(day2)));
+      .mockResolvedValueOnce(makeClaudeResponse("truncated", "max_tokens")) // initial call truncated
+      .mockResolvedValueOnce(makeClaudeResponse(JSON.stringify(chunk1)))     // chunk 1 succeeds
+      .mockResolvedValueOnce(makeClaudeResponse(JSON.stringify(chunk2)));    // chunk 2 succeeds
 
     const result = await parseItinerary(longText);
 
@@ -166,23 +196,19 @@ describe("parseItinerary", () => {
     expect(result.days[1].dayNumber).toBe(2);
   });
 
-  it("throws ParseError if a chunk response also hits max_tokens", async () => {
+  it("throws ParseError when both the initial call and a chunk are truncated", async () => {
     const longText =
       "Day 1: Arrive\n".padEnd(12_001, "x") + "\nDay 2: Depart";
 
-    mockMessagesCreate
-      .mockResolvedValueOnce(makeClaudeResponse("truncated", "max_tokens"))
-      .mockResolvedValue(makeClaudeResponse("still truncated", "max_tokens"));
+    mockMessagesCreate.mockResolvedValue(makeClaudeResponse("truncated", "max_tokens"));
 
     await expect(parseItinerary(longText)).rejects.toThrow(ParseError);
   });
 
-  it("throws ParseError when max_tokens and text cannot be split into multiple chunks", async () => {
-    // Short text with no day markers → splits into a single chunk → can't retry
-    mockMessagesCreate.mockResolvedValue(
-      makeClaudeResponse("truncated", "max_tokens")
-    );
+  it("throws ParseError when a short input's single fallback chunk is also truncated", async () => {
+    // Short text → 1 chunk after splitting → that chunk also truncated
+    mockMessagesCreate.mockResolvedValue(makeClaudeResponse("truncated", "max_tokens"));
 
-    await expect(parseItinerary("no day markers here")).rejects.toThrow(ParseError);
+    await expect(parseItinerary("raw text")).rejects.toThrow(ParseError);
   });
 });

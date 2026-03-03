@@ -3,8 +3,8 @@ import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft, MapPin, Calendar } from "lucide-react";
+import { TripCompanionClient } from "@/components/TripCompanionClient";
+import type { TripDetail, StopOption } from "@/types/trip";
 
 interface TripPageProps {
   params: { id: string };
@@ -18,63 +18,64 @@ export default async function TripPage({ params }: TripPageProps) {
     where: { id: params.id },
     select: {
       id: true,
+      user_id: true,
       name: true,
       destination: true,
       start_date: true,
       end_date: true,
-      user_id: true,
+      days: {
+        orderBy: { day_number: "asc" },
+        select: {
+          id: true,
+          day_number: true,
+          date: true,
+          title: true,
+          notes: true,
+          stops: {
+            orderBy: { order: "asc" },
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              time: true,
+              address: true,
+              notes: true,
+              order: true,
+              options: true,
+            },
+          },
+        },
+      },
     },
   });
 
   if (!trip || trip.user_id !== session.user.id) notFound();
 
-  return (
-    <div className="mx-auto max-w-2xl px-4 py-10">
-      <Link
-        href="/dashboard"
-        className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink-mid"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to dashboard
-      </Link>
+  // Serialize Date objects to ISO strings before passing to the client component
+  const tripDetail: TripDetail = {
+    id: trip.id,
+    name: trip.name,
+    destination: trip.destination,
+    start_date: trip.start_date?.toISOString().split("T")[0] ?? null,
+    end_date: trip.end_date?.toISOString().split("T")[0] ?? null,
+    days: trip.days.map((day) => ({
+      id: day.id,
+      day_number: day.day_number,
+      date: day.date?.toISOString().split("T")[0] ?? null,
+      title: day.title,
+      notes: day.notes ?? null,
+      stops: day.stops.map((stop) => ({
+        id: stop.id,
+        name: stop.name,
+        type: stop.type,
+        time: stop.time,
+        address: stop.address,
+        notes: stop.notes,
+        order: stop.order,
+        options: Array.isArray(stop.options) ? (stop.options as StopOption[]) : [],
+      })),
+    })),
+  };
 
-      <h1 className="font-serif text-3xl font-semibold text-ink">{trip.name}</h1>
-
-      <div className="mt-3 space-y-1.5">
-        <div className="flex items-center gap-2 text-sm text-muted">
-          <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
-          <span>{trip.destination}</span>
-        </div>
-        {trip.start_date && (
-          <div className="flex items-center gap-2 text-sm text-muted">
-            <Calendar className="h-4 w-4 shrink-0" aria-hidden="true" />
-            <span>
-              {new Date(trip.start_date).toLocaleDateString("en-US", {
-                month: "long",
-                day: "numeric",
-                year: "numeric",
-              })}
-              {trip.end_date && (
-                <>
-                  {" – "}
-                  {new Date(trip.end_date).toLocaleDateString("en-US", {
-                    month: "long",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
-                </>
-              )}
-            </span>
-          </div>
-        )}
-      </div>
-
-      <div className="mt-12 rounded-2xl bg-parchment p-8 text-center">
-        <p className="font-serif text-xl text-ink">Trip companion coming in Phase 4</p>
-        <p className="mt-2 text-sm text-muted">
-          Itinerary browser, map, AI chat, and packing checklist are on the way.
-        </p>
-      </div>
-    </div>
-  );
+  return <TripCompanionClient trip={tripDetail} />;
 }
