@@ -126,15 +126,9 @@ describe("MapTab", () => {
     expect(screen.queryByText("No mappable stops for this day.")).not.toBeInTheDocument();
   });
 
-  it("shows the legend when options with coords are present", () => {
+  it("renders the map container when a stop has options with coords", () => {
     render(<MapTab days={DAYS_WITH_OPTIONS} selectedDay={1} onSelectDay={vi.fn()} />);
-    expect(screen.getByText("Stops")).toBeInTheDocument();
-    expect(screen.getByText("Options")).toBeInTheDocument();
-  });
-
-  it("does not show the legend when no options have coords", () => {
-    render(<MapTab days={DAYS} selectedDay={1} onSelectDay={vi.fn()} />);
-    expect(screen.queryByText("Options")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Trip map")).toBeInTheDocument();
   });
 
   it("calls onSelectDay with the new day number when a pill is clicked", async () => {

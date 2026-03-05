@@ -12,9 +12,10 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.78.0",
     "@auth/prisma-adapter": "^2.11.1",
+    "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^5.22.0",
+    "@tailwindcss/typography": "^0.5.19",
     "bcryptjs": "^3.0.3",
     "lucide-react": "^0.575.0",
     "mammoth": "^1.11.0",
@@ -26,6 +27,7 @@
     "prisma": "^5.22.0",
     "react": "^18",
     "react-dom": "^18",
+    "react-markdown": "^10.1.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {

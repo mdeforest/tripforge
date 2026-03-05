@@ -60,8 +60,12 @@ NEXTAUTH_SECRET=
 NEXTAUTH_URL=
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-ANTHROPIC_API_KEY=
-MAPBOX_ACCESS_TOKEN=
+ANTHROPIC_API_KEY=           # used for itinerary parsing + address enrichment (or set AI_PROVIDER=deepseek)
+OPENAI_API_KEY=              # DeepSeek API key (OpenAI-compatible); used when AI_PROVIDER=deepseek
+GOOGLE_AI_API_KEY=           # Gemini API key; used for chat assistant
+GEMINI_MODEL=                # optional; defaults to gemini-2.5-flash
+NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN=  # client-side map rendering
+MAPBOX_ACCESS_TOKEN=         # server-side geocoding
 ```
 
 ---
@@ -168,24 +172,26 @@ Tasks:
 
 ---
 
-### Phase 6: Trip Companion — AI Chat
+### Phase 6: Trip Companion — AI Chat ✅
 
 **Goal:** Streaming AI chat assistant with full trip context.
 
 Tasks:
 - Chat tab with message list and input
 - `/api/trips/[id]/chat` streaming endpoint
-- System prompt includes full serialized trip itinerary
-- Streaming response using Vercel AI SDK (`ai` package) + Anthropic provider
+- System prompt (`lib/prompts/chat-system-prompt.ts`) serializes full trip itinerary; instructs model to use Markdown formatting, bold key facts, include Google Maps links for places mentioned, and cite Google Search results
+- Streaming response using `@google/generative-ai` (Gemini 2.5 Flash with `googleSearch` grounding tool) — NOT Vercel AI SDK; Gemini chosen for free tier and built-in Google Search
 - Session-scoped conversation history (in-memory / React state, not persisted)
 - Welcome message with suggested questions
-- Loading indicator while streaming
-- "Offline" state detected via `navigator.onLine`
+- Loading indicator while streaming (animated bouncing dots)
+- "Offline" state detected via `navigator.onLine`; banner shown, input disabled
+- Markdown rendering via `react-markdown` + `@tailwindcss/typography` (`prose` classes)
+- Copy button on each completed model message (clipboard API + 2s checkmark feedback)
 
 **Tests (Phase 6):**
-- `tests/unit/api/chat.test.ts` — chat endpoint: auth guard, trip ownership check, message format validation, Claude error handling
-- `tests/unit/components/ChatTab.test.tsx` — renders welcome message, sends message, shows loading indicator, offline banner
-- `tests/unit/lib/buildSystemPrompt.test.ts` — system prompt utility: includes trip name, destination, all days/stops
+- `tests/unit/api/chat.test.ts` — chat endpoint: auth guard, trip ownership check, message format validation, Gemini error handling
+- `tests/unit/components/ChatTab.test.tsx` — renders welcome message, sends message, streams response, shows loading indicator, offline banner
+- `tests/unit/lib/buildChatSystemPrompt.test.ts` — system prompt utility: includes trip name, destination, all days/stops, handles null dates
 
 ---
 
@@ -339,6 +345,12 @@ The v5 endpoint (`api.mapbox.com/geocoding/v5/mapbox.places`) is deprecated. Use
 
 **Map pin numbering uses day-order position across all non-hotel stops**
 `allStopNumber` is built from ALL non-hotel stops in the day (in order), not just the visible numbered pins. This ensures option pins have the same number as their parent stop, even when the parent stop itself has no visible pin (e.g. it was suppressed for sharing the hotel's coordinates). Visible numbered pins (`stopsWithCoords`) exclude: hotel-type stops, stops with options (represented by their option pins instead), and stops at the same lat/lng as the active hotel.
+
+**Chat uses Gemini (not Claude) — role names differ**
+The chat API uses Gemini 2.0/2.5 Flash via `@google/generative-ai`. Gemini uses `"user"` and `"model"` as role names (not `"user"` / `"assistant"` as in the Claude/OpenAI API). The `MessageSchema` zod validator enforces `z.enum(["user", "model"])` and the client stores messages with `role: "model"` for AI replies.
+
+**`react-markdown` + Tailwind typography for chat message rendering**
+Model responses are rendered as Markdown using `react-markdown` with `@tailwindcss/typography`. Apply `prose prose-sm prose-stone max-w-none` to the message bubble div. Use a custom `components.a` renderer to add `target="_blank" rel="noopener noreferrer"` to all links (Google Maps links in particular). User messages stay as plain `whitespace-pre-wrap` text.
 
 **`request.formData()` hangs in jsdom when body contains a `File` object**
 jsdom cannot serialize/deserialize multipart binary data (File objects in FormData). `new Request(url, { body: formData })` followed by `request.formData()` will hang indefinitely when the FormData contains a File. Fix: mock the Request directly so `formData()` returns the FormData without parsing:

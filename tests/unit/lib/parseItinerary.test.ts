@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ParseError } from "@/lib/parseItinerary";
 
-// Mock the Anthropic SDK before importing the module under test.
-// Must use a class (not an arrow function) because parseItinerary.ts calls `new Anthropic(...)`.
-const mockMessagesCreate = vi.fn();
-vi.mock("@anthropic-ai/sdk", () => ({
+// Mock OpenAI (used via DeepSeek-compatible endpoint) before importing the module under test.
+// Must use a class — parseItinerary.ts calls `new OpenAI(...)`.
+const mockChatCompletionsCreate = vi.fn();
+vi.mock("openai", () => ({
   default: class {
-    messages = { create: mockMessagesCreate };
+    chat = { completions: { create: mockChatCompletionsCreate } };
   },
 }));
 
@@ -37,23 +37,22 @@ const VALID_RESPONSE = {
   ],
 };
 
-function makeClaudeResponse(text: string, stop_reason = "end_turn") {
+function makeDeepseekResponse(text: string, finish_reason = "stop") {
   return {
-    content: [{ type: "text", text }],
-    stop_reason,
+    choices: [{ message: { content: text }, finish_reason }],
   };
 }
 
 describe("parseItinerary", () => {
   beforeEach(() => {
-    mockMessagesCreate.mockReset();
+    mockChatCompletionsCreate.mockReset();
   });
 
   // ── Happy path ─────────────────────────────────────────────────────────────
 
   it("returns a ParsedItinerary for a valid Claude response", async () => {
-    mockMessagesCreate.mockResolvedValue(
-      makeClaudeResponse(JSON.stringify(VALID_RESPONSE))
+    mockChatCompletionsCreate.mockResolvedValue(
+      makeDeepseekResponse(JSON.stringify(VALID_RESPONSE))
     );
 
     const result = await parseItinerary("Day 1: Visit Colosseum");
@@ -67,7 +66,7 @@ describe("parseItinerary", () => {
 
   it("strips markdown code fences that Claude occasionally wraps around JSON", async () => {
     const withFences = `\`\`\`json\n${JSON.stringify(VALID_RESPONSE)}\n\`\`\``;
-    mockMessagesCreate.mockResolvedValue(makeClaudeResponse(withFences));
+    mockChatCompletionsCreate.mockResolvedValue(makeDeepseekResponse(withFences));
 
     const result = await parseItinerary("raw text");
     expect(result.tripName).toBe("Italy Adventure");
@@ -83,8 +82,8 @@ describe("parseItinerary", () => {
         },
       ],
     };
-    mockMessagesCreate.mockResolvedValue(
-      makeClaudeResponse(JSON.stringify(modified))
+    mockChatCompletionsCreate.mockResolvedValue(
+      makeDeepseekResponse(JSON.stringify(modified))
     );
 
     const result = await parseItinerary("raw text");
@@ -94,8 +93,8 @@ describe("parseItinerary", () => {
   // ── Parse errors ───────────────────────────────────────────────────────────
 
   it("throws ParseError when Claude returns invalid JSON", async () => {
-    mockMessagesCreate.mockResolvedValue(
-      makeClaudeResponse("This is not JSON at all")
+    mockChatCompletionsCreate.mockResolvedValue(
+      makeDeepseekResponse("This is not JSON at all")
     );
 
     await expect(parseItinerary("raw text")).rejects.toThrow(ParseError);
@@ -103,8 +102,8 @@ describe("parseItinerary", () => {
 
   it("throws ParseError when response is missing required tripName field", async () => {
     const missing = { ...VALID_RESPONSE, tripName: undefined };
-    mockMessagesCreate.mockResolvedValue(
-      makeClaudeResponse(JSON.stringify(missing))
+    mockChatCompletionsCreate.mockResolvedValue(
+      makeDeepseekResponse(JSON.stringify(missing))
     );
 
     await expect(parseItinerary("raw text")).rejects.toThrow(ParseError);
@@ -112,15 +111,15 @@ describe("parseItinerary", () => {
 
   it("throws ParseError when response has no days array", async () => {
     const noDays = { ...VALID_RESPONSE, days: [] };
-    mockMessagesCreate.mockResolvedValue(
-      makeClaudeResponse(JSON.stringify(noDays))
+    mockChatCompletionsCreate.mockResolvedValue(
+      makeDeepseekResponse(JSON.stringify(noDays))
     );
 
     await expect(parseItinerary("raw text")).rejects.toThrow(ParseError);
   });
 
   it("throws ParseError when response is not an object", async () => {
-    mockMessagesCreate.mockResolvedValue(makeClaudeResponse(`"just a string"`));
+    mockChatCompletionsCreate.mockResolvedValue(makeDeepseekResponse(`"just a string"`));
 
     await expect(parseItinerary("raw text")).rejects.toThrow(ParseError);
   });
@@ -148,14 +147,14 @@ describe("parseItinerary", () => {
       "Day 1: Arrive in Rome\n".padEnd(31_600, "x") +
       "\nDay 2: Visit Vatican";
 
-    mockMessagesCreate
-      .mockResolvedValueOnce(makeClaudeResponse(JSON.stringify(chunk1))) // chunk 1 (no initial call)
-      .mockResolvedValueOnce(makeClaudeResponse(JSON.stringify(chunk2))); // chunk 2
+    mockChatCompletionsCreate
+      .mockResolvedValueOnce(makeDeepseekResponse(JSON.stringify(chunk1))) // chunk 1 (no initial call)
+      .mockResolvedValueOnce(makeDeepseekResponse(JSON.stringify(chunk2))); // chunk 2
 
     const result = await parseItinerary(largeText);
 
     // Exactly 2 calls (chunks only, no wasted initial call)
-    expect(mockMessagesCreate).toHaveBeenCalledTimes(2);
+    expect(mockChatCompletionsCreate).toHaveBeenCalledTimes(2);
     expect(result.tripName).toBe("Italy Adventure");
     expect(result.days).toHaveLength(2);
   });
@@ -181,10 +180,10 @@ describe("parseItinerary", () => {
       "Day 1: Arrive in Rome\n".padEnd(12_001, "x") +
       "\nDay 2: Visit Vatican";
 
-    mockMessagesCreate
-      .mockResolvedValueOnce(makeClaudeResponse("truncated", "max_tokens")) // initial call truncated
-      .mockResolvedValueOnce(makeClaudeResponse(JSON.stringify(chunk1)))     // chunk 1 succeeds
-      .mockResolvedValueOnce(makeClaudeResponse(JSON.stringify(chunk2)));    // chunk 2 succeeds
+    mockChatCompletionsCreate
+      .mockResolvedValueOnce(makeDeepseekResponse("truncated", "length")) // initial call truncated
+      .mockResolvedValueOnce(makeDeepseekResponse(JSON.stringify(chunk1)))     // chunk 1 succeeds
+      .mockResolvedValueOnce(makeDeepseekResponse(JSON.stringify(chunk2)));    // chunk 2 succeeds
 
     const result = await parseItinerary(longText);
 
@@ -200,14 +199,14 @@ describe("parseItinerary", () => {
     const longText =
       "Day 1: Arrive\n".padEnd(12_001, "x") + "\nDay 2: Depart";
 
-    mockMessagesCreate.mockResolvedValue(makeClaudeResponse("truncated", "max_tokens"));
+    mockChatCompletionsCreate.mockResolvedValue(makeDeepseekResponse("truncated", "length"));
 
     await expect(parseItinerary(longText)).rejects.toThrow(ParseError);
   });
 
   it("throws ParseError when a short input's single fallback chunk is also truncated", async () => {
     // Short text → 1 chunk after splitting → that chunk also truncated
-    mockMessagesCreate.mockResolvedValue(makeClaudeResponse("truncated", "max_tokens"));
+    mockChatCompletionsCreate.mockResolvedValue(makeDeepseekResponse("truncated", "length"));
 
     await expect(parseItinerary("raw text")).rejects.toThrow(ParseError);
   });

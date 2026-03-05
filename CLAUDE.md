@@ -4,10 +4,12 @@
 Use the files in docs/ for additional context. 
 
 ## Stack
-- Next.js 14 App Router · TypeScript strict · Tailwind CSS
+- Next.js 14 App Router · TypeScript strict · Tailwind CSS · `@tailwindcss/typography`
 - Prisma v5.22 (NOT v7) · PostgreSQL (Supabase)
 - NextAuth v4 · `@auth/prisma-adapter` · JWT sessions (not DB sessions)
-- bcryptjs · zod · Lucide React · Anthropic Claude SDK
+- bcryptjs · zod · Lucide React · react-markdown
+- **Parse/enrich:** Anthropic Claude SDK (or DeepSeek via `openai` SDK when `AI_PROVIDER=deepseek`)
+- **Chat:** `@google/generative-ai` — Gemini 2.5 Flash + Google Search grounding; roles are `"user"` / `"model"` (not `"assistant"`)
 
 ## Commands
 ```
@@ -44,8 +46,13 @@ components/ItineraryTab.tsx           DaySelector + stop timeline; defaults to t
 components/DaySelector.tsx            horizontal pill buttons
 components/StopCard.tsx               expandable; type icon + Get Directions
 lib/auth.ts / lib/prisma.ts / lib/extractText.ts / lib/parseItinerary.ts / lib/enrichAddresses.ts
+lib/geocode.ts                        geocodeAddress() via Mapbox Geocoding API v6
 lib/prompts/parse-itinerary.ts        parse prompt (rule 7: address = real address or null)
 lib/prompts/enrich-addresses.ts       enrich prompt + StopToEnrich type
+lib/prompts/chat-system-prompt.ts     buildChatSystemPrompt(); Markdown + Maps link formatting rules
+components/MapTab.tsx                 DaySelector + Mapbox GL JS map; SSR-safe dynamic import
+components/ChatTab.tsx                streaming chat with Gemini; react-markdown rendering; copy button
+app/api/trips/[id]/chat/route.ts      POST streaming; Gemini 2.5 Flash + googleSearch tool
 types/itinerary.ts                    ParsedStop, ParsedDay, ParsedItinerary
 types/trip.ts                         StopDetail, DayDetail, TripDetail (server→client safe)
 prisma/schema.prisma                  Users Trips Days Stops ChecklistItems + NextAuth tables
@@ -72,9 +79,10 @@ tests/setup.ts                        global mocks: Prisma, NextAuth, next/navig
 - `request.formData()` hangs with File in jsdom — mock the Request object instead
 - Claude mock responses need `stop_reason` field; `"max_tokens"` required for chunking tests
 
-## Phase Status (134 tests green through Phase 4 + P3 enrichment enhancement)
+## Phase Status (175 tests green through Phase 6)
 - P1 auth+schema · P2 dashboard+trips list · P3 upload+parse+create+enrich · P4 trip companion UI
-- **Next: Phase 5 — Maps**
+- P5 maps (Mapbox GL JS, geocoding, pins) · P6 AI chat (Gemini streaming, markdown, copy, Maps links)
+- **Next: Phase 7 — Packing Checklist**
 
 ## Constraints
 - Prisma v5 only — v7 breaks `@auth/prisma-adapter`

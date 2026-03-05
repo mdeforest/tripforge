@@ -1,3 +1,0 @@
-* allow formatting in notes
-* Could the parsing be done for cheaper? look into using multiple models like claude for the hard stuff (finding addresses if not given, etc), deepseek for the initial parsing and formatting. 
-* Add additional points of interest

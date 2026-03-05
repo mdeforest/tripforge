@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import type { ParsedItinerary } from "@/types/itinerary";
 import { buildParsePrompt } from "@/lib/prompts/parse-itinerary";
@@ -14,10 +13,7 @@ export class ParseError extends Error {
 const VALID_STOP_TYPES = new Set(["hotel", "restaurant", "activity", "transport", "other"]);
 const VALID_OPTION_TYPES = new Set(["restaurant", "activity"]);
 
-/** Which AI provider to use. Set AI_PROVIDER=deepseek to switch; defaults to claude. */
-const AI_PROVIDER = (process.env.AI_PROVIDER ?? "claude").toLowerCase();
-
-// Max input chars per chunk — keeps output well within any provider's 8K output token limit.
+// Max input chars per chunk — keeps output well within DeepSeek's 8K output token limit.
 // At ~5 output chars/token, a 12K-char chunk produces ~2,400–2,800 output tokens (30–35% of cap).
 const CHUNK_CHARS = 12_000;
 
@@ -151,49 +147,26 @@ function mergeItineraries(results: ParsedItinerary[]): ParsedItinerary {
   };
 }
 
-let _anthropic: Anthropic | null = null;
 let _openai: OpenAI | null = null;
 
-function getAnthropicClient(): Anthropic {
-  if (!_anthropic) _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  return _anthropic;
-}
-
-function getDeepseekClient(): OpenAI {
-  if (!_openai) {
+function getClient(): OpenAI {
+  if (!_openai)
     _openai = new OpenAI({ apiKey: process.env.DEEPSEEK_API_KEY, baseURL: "https://api.deepseek.com" });
-  }
   return _openai;
 }
 
 type ChunkInfo = { index: number; total: number };
 
-async function callClaude(
-  rawText: string,
-  maxTokens = computeMaxTokens(rawText.length),
-  chunkInfo?: ChunkInfo,
-): Promise<{ text: string; truncated: boolean }> {
-  const client = getAnthropicClient();
-  const message = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: maxTokens,
-    messages: [{ role: "user", content: buildParsePrompt(rawText, chunkInfo) }],
-  });
-  const firstContent = message.content[0];
-  if (firstContent.type !== "text") throw new ParseError("Unexpected response type from Claude.");
-  return { text: firstContent.text, truncated: message.stop_reason === "max_tokens" };
-}
-
 /**
  * Calls DeepSeek with json_object mode (guaranteed valid JSON, no fences) and temperature=0
  * for deterministic structured extraction.
  */
-async function callDeepseek(
+async function callAI(
   rawText: string,
   maxTokens = computeMaxTokens(rawText.length),
   chunkInfo?: ChunkInfo,
 ): Promise<{ text: string; truncated: boolean }> {
-  const client = getDeepseekClient();
+  const client = getClient();
   console.log(`[deepseek] Sending request (${rawText.length} chars, max_tokens=${maxTokens})`);
   const completion = await client.chat.completions.create({
     model: "deepseek-chat",
@@ -206,16 +179,6 @@ async function callDeepseek(
   const truncated = choice.finish_reason === "length";
   console.log(`[deepseek] finish_reason=${choice.finish_reason}, length=${choice.message.content?.length ?? 0}`);
   return { text: choice.message.content ?? "", truncated };
-}
-
-async function callAI(
-  rawText: string,
-  maxTokens?: number,
-  chunkInfo?: ChunkInfo,
-): Promise<{ text: string; truncated: boolean }> {
-  return AI_PROVIDER === "deepseek"
-    ? callDeepseek(rawText, maxTokens, chunkInfo)
-    : callClaude(rawText, maxTokens, chunkInfo);
 }
 
 /** Strips fences, JSON.parses, and validates a single AI response. */
@@ -242,7 +205,7 @@ function parseAndValidate(text: string, isChunk: boolean): ParsedItinerary {
  * @throws Error if the API call itself fails (caller should handle timeouts)
  */
 export async function parseItinerary(rawText: string): Promise<ParsedItinerary> {
-  console.log(`[parseItinerary] provider=${AI_PROVIDER}, input=${rawText.length} chars`);
+  console.log(`[parseItinerary] provider=deepseek, input=${rawText.length} chars`);
 
   // When computeMaxTokens hits the cap, the output is likely to overflow — skip straight to chunks.
   const likelyOverflows = computeMaxTokens(rawText.length) === 8192;

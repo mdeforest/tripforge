@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import type { ParsedItinerary } from "@/types/itinerary";
 import { buildEnrichAddressesPrompt, type StopToEnrich } from "@/lib/prompts/enrich-addresses";
 
@@ -10,33 +10,34 @@ function stripCodeFences(text: string): string {
   return text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
 }
 
-let _anthropic: Anthropic | null = null;
+let _openai: OpenAI | null = null;
 
-function getClient(): Anthropic {
-  if (!_anthropic) _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  return _anthropic;
+function getClient(): OpenAI {
+  if (!_openai)
+    _openai = new OpenAI({ apiKey: process.env.DEEPSEEK_API_KEY, baseURL: "https://api.deepseek.com" });
+  return _openai;
 }
 
 /**
- * Calls Claude with one chunk of stops and returns the address patches it decides to apply.
+ * Calls DeepSeek with one chunk of stops and returns the address patches it decides to apply.
  * Throws if the response is truncated or unparseable — callers handle the error.
  */
 async function enrichChunk(
-  client: Anthropic,
+  client: OpenAI,
   destination: string,
   chunk: StopToEnrich[],
 ): Promise<{ key: string; address: string | null }[]> {
-  const message = await client.messages.create({
-    model: "claude-sonnet-4-6",
+  const completion = await client.chat.completions.create({
+    model: "deepseek-chat",
     max_tokens: 4096,
+    temperature: 0,
     messages: [{ role: "user", content: buildEnrichAddressesPrompt(destination, chunk) }],
   });
 
-  const firstContent = message.content[0];
-  if (firstContent.type !== "text") throw new Error("Unexpected response type from Claude.");
-  if (message.stop_reason === "max_tokens") throw new Error("Enrichment chunk response was truncated.");
+  const choice = completion.choices[0];
+  if (choice.finish_reason === "length") throw new Error("Enrichment chunk response was truncated.");
 
-  return JSON.parse(stripCodeFences(firstContent.text));
+  return JSON.parse(stripCodeFences(choice.message.content ?? "[]"));
 }
 
 /**
@@ -84,7 +85,9 @@ export async function enrichAddresses(itinerary: ParsedItinerary): Promise<Parse
   let addressMap: Map<string, string | null>;
   try {
     const client = getClient();
-    const results = await Promise.all(chunks.map((chunk) => enrichChunk(client, itinerary.destination, chunk)));
+    const results = await Promise.all(
+      chunks.map((chunk) => enrichChunk(client, itinerary.destination, chunk)),
+    );
     addressMap = new Map(results.flat().map((p) => [p.key, p.address]));
   } catch (err) {
     console.error("[enrichAddresses] Failed, returning original itinerary:", err);

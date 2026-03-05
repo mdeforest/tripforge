@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Mock Anthropic before importing the module under test.
-// Must use a class (not an arrow function) — enrichAddresses.ts uses `new Anthropic(...)`.
-const mockMessagesCreate = vi.fn();
-vi.mock("@anthropic-ai/sdk", () => ({
+// Mock OpenAI (used via DeepSeek-compatible endpoint) before importing the module under test.
+// Must use a class — enrichAddresses.ts calls `new OpenAI(...)`.
+const mockChatCompletionsCreate = vi.fn();
+vi.mock("openai", () => ({
   default: class {
-    messages = { create: mockMessagesCreate };
+    chat = { completions: { create: mockChatCompletionsCreate } };
   },
 }));
 
@@ -50,39 +50,39 @@ const BASE_ITINERARY: ParsedItinerary = {
   ],
 };
 
-function makeClaudeResponse(text: string) {
-  return { content: [{ type: "text", text }], stop_reason: "end_turn" };
+function makeDeepseekResponse(text: string) {
+  return { choices: [{ message: { content: text }, finish_reason: "stop" }] };
 }
 
 // ── enrichAddresses ──────────────────────────────────────────────────────────
 
 describe("enrichAddresses", () => {
   beforeEach(() => {
-    mockMessagesCreate.mockReset();
+    mockChatCompletionsCreate.mockReset();
   });
 
   it("skips the Claude call when there are no stops", async () => {
     const itinerary: ParsedItinerary = { ...BASE_ITINERARY, days: [] };
     const result = await enrichAddresses(itinerary);
-    expect(mockMessagesCreate).not.toHaveBeenCalled();
+    expect(mockChatCompletionsCreate).not.toHaveBeenCalled();
     expect(result).toBe(itinerary);
   });
 
   it("sends all stops to Claude regardless of their current address", async () => {
-    mockMessagesCreate.mockResolvedValue(makeClaudeResponse("[]"));
+    mockChatCompletionsCreate.mockResolvedValue(makeDeepseekResponse("[]"));
 
     await enrichAddresses(BASE_ITINERARY);
 
-    expect(mockMessagesCreate).toHaveBeenCalledTimes(1);
-    const prompt = mockMessagesCreate.mock.calls[0][0].messages[0].content as string;
+    expect(mockChatCompletionsCreate).toHaveBeenCalledTimes(1);
+    const prompt = mockChatCompletionsCreate.mock.calls[0][0].messages[0].content as string;
     // Both stops should appear in the prompt — the null-address one AND the hotel with a full address
     expect(prompt).toContain("Colosseum");
     expect(prompt).toContain("Hotel Damaso");
   });
 
   it("applies patches returned by Claude", async () => {
-    mockMessagesCreate.mockResolvedValue(
-      makeClaudeResponse(
+    mockChatCompletionsCreate.mockResolvedValue(
+      makeDeepseekResponse(
         JSON.stringify([{ key: "0-0", address: "Piazza del Colosseo, 1, 00184 Roma RM, Italy" }])
       )
     );
@@ -93,8 +93,8 @@ describe("enrichAddresses", () => {
   });
 
   it("preserves addresses not included in Claude's patches", async () => {
-    mockMessagesCreate.mockResolvedValue(
-      makeClaudeResponse(JSON.stringify([{ key: "0-0", address: "Piazza del Colosseo, 1, 00184 Roma RM, Italy" }]))
+    mockChatCompletionsCreate.mockResolvedValue(
+      makeDeepseekResponse(JSON.stringify([{ key: "0-0", address: "Piazza del Colosseo, 1, 00184 Roma RM, Italy" }]))
     );
 
     const result = await enrichAddresses(BASE_ITINERARY);
@@ -104,7 +104,7 @@ describe("enrichAddresses", () => {
   });
 
   it("returns original itinerary unchanged when Claude returns no patches", async () => {
-    mockMessagesCreate.mockResolvedValue(makeClaudeResponse("[]"));
+    mockChatCompletionsCreate.mockResolvedValue(makeDeepseekResponse("[]"));
 
     const result = await enrichAddresses(BASE_ITINERARY);
 
@@ -130,8 +130,8 @@ describe("enrichAddresses", () => {
       ],
     };
 
-    mockMessagesCreate.mockResolvedValue(
-      makeClaudeResponse(
+    mockChatCompletionsCreate.mockResolvedValue(
+      makeDeepseekResponse(
         JSON.stringify([{ key: "0-0-0", address: "Via Cavour, 315, 00184 Roma RM, Italy" }])
       )
     );
@@ -141,8 +141,8 @@ describe("enrichAddresses", () => {
   });
 
   it("keeps the original address when Claude patches it with null", async () => {
-    mockMessagesCreate.mockResolvedValue(
-      makeClaudeResponse(JSON.stringify([{ key: "0-0", address: null }]))
+    mockChatCompletionsCreate.mockResolvedValue(
+      makeDeepseekResponse(JSON.stringify([{ key: "0-0", address: null }]))
     );
 
     const result = await enrichAddresses(BASE_ITINERARY);
@@ -152,14 +152,14 @@ describe("enrichAddresses", () => {
 
   it("strips markdown code fences from the Claude response", async () => {
     const json = JSON.stringify([{ key: "0-0", address: "Piazza del Colosseo, 1, 00184 Roma RM, Italy" }]);
-    mockMessagesCreate.mockResolvedValue(makeClaudeResponse(`\`\`\`json\n${json}\n\`\`\``));
+    mockChatCompletionsCreate.mockResolvedValue(makeDeepseekResponse(`\`\`\`json\n${json}\n\`\`\``));
 
     const result = await enrichAddresses(BASE_ITINERARY);
     expect(result.days[0].stops[0].address).toBe("Piazza del Colosseo, 1, 00184 Roma RM, Italy");
   });
 
   it("returns the original itinerary unchanged when Claude call fails", async () => {
-    mockMessagesCreate.mockRejectedValue(new Error("API error"));
+    mockChatCompletionsCreate.mockRejectedValue(new Error("API error"));
 
     const result = await enrichAddresses(BASE_ITINERARY);
 
@@ -167,7 +167,7 @@ describe("enrichAddresses", () => {
   });
 
   it("returns the original itinerary unchanged when Claude returns invalid JSON", async () => {
-    mockMessagesCreate.mockResolvedValue(makeClaudeResponse("not json at all"));
+    mockChatCompletionsCreate.mockResolvedValue(makeDeepseekResponse("not json at all"));
 
     const result = await enrichAddresses(BASE_ITINERARY);
 
@@ -175,9 +175,8 @@ describe("enrichAddresses", () => {
   });
 
   it("returns the original itinerary unchanged when the response is truncated", async () => {
-    mockMessagesCreate.mockResolvedValue({
-      content: [{ type: "text", text: '[{"key":"0-0","address":"Via Cavour, 315' }],
-      stop_reason: "max_tokens",
+    mockChatCompletionsCreate.mockResolvedValue({
+      choices: [{ message: { content: '[{"key":"0-0","address":"Via Cavour, 315' }, finish_reason: "length" }],
     });
 
     const result = await enrichAddresses(BASE_ITINERARY);
@@ -197,10 +196,10 @@ describe("enrichAddresses", () => {
       ],
     };
 
-    mockMessagesCreate.mockResolvedValue(makeClaudeResponse("[]"));
+    mockChatCompletionsCreate.mockResolvedValue(makeDeepseekResponse("[]"));
     await enrichAddresses(itinerary);
 
-    const sentPrompt = mockMessagesCreate.mock.calls[0][0].messages[0].content as string;
+    const sentPrompt = mockChatCompletionsCreate.mock.calls[0][0].messages[0].content as string;
     expect(sentPrompt).toContain("A".repeat(200) + "…");
     expect(sentPrompt).not.toContain("A".repeat(201));
   });
@@ -223,13 +222,13 @@ describe("enrichAddresses", () => {
     };
 
     // First chunk returns a patch for stop 0; second chunk returns a patch for stop 40
-    mockMessagesCreate
-      .mockResolvedValueOnce(makeClaudeResponse(JSON.stringify([{ key: "0-0", address: "Address A" }])))
-      .mockResolvedValueOnce(makeClaudeResponse(JSON.stringify([{ key: "0-40", address: "Address B" }])));
+    mockChatCompletionsCreate
+      .mockResolvedValueOnce(makeDeepseekResponse(JSON.stringify([{ key: "0-0", address: "Address A" }])))
+      .mockResolvedValueOnce(makeDeepseekResponse(JSON.stringify([{ key: "0-40", address: "Address B" }])));
 
     const result = await enrichAddresses(itinerary);
 
-    expect(mockMessagesCreate).toHaveBeenCalledTimes(2);
+    expect(mockChatCompletionsCreate).toHaveBeenCalledTimes(2);
     expect(result.days[0].stops[0].address).toBe("Address A");
     expect(result.days[0].stops[40].address).toBe("Address B");
     // Stops not in any patch keep their original address (null)
@@ -252,8 +251,8 @@ describe("enrichAddresses", () => {
       days: [{ ...BASE_ITINERARY.days[0], stops: manyStops }],
     };
 
-    mockMessagesCreate
-      .mockResolvedValueOnce(makeClaudeResponse(JSON.stringify([{ key: "0-0", address: "Address A" }])))
+    mockChatCompletionsCreate
+      .mockResolvedValueOnce(makeDeepseekResponse(JSON.stringify([{ key: "0-0", address: "Address A" }])))
       .mockRejectedValueOnce(new Error("API error on chunk 2"));
 
     const result = await enrichAddresses(itinerary);

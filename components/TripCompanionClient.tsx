@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { ItineraryTab } from "@/components/ItineraryTab";
 import { MapTab } from "@/components/MapTab";
+import { ChatTab } from "@/components/ChatTab";
 import type { MapViewport } from "@/components/MapTab";
 import type { TripDetail, DayDetail } from "@/types/trip";
 
@@ -20,7 +21,7 @@ type Tab = "itinerary" | "map" | "chat" | "checklist";
 const TABS: { id: Tab; label: string; Icon: React.ElementType; comingSoon?: string }[] = [
   { id: "itinerary", label: "Itinerary", Icon: List },
   { id: "map",       label: "Map",       Icon: Map },
-  { id: "chat",      label: "Chat",      Icon: MessageCircle, comingSoon: "Phase 6" },
+  { id: "chat",      label: "Chat",      Icon: MessageCircle },
   { id: "checklist", label: "Checklist", Icon: CheckSquare,   comingSoon: "Phase 7" },
 ];
 
@@ -103,13 +104,18 @@ export function TripCompanionClient({ trip }: TripCompanionClientProps) {
             onViewportChange={(vp) => { mapViewportRef.current = vp; }}
           />
         )}
-        {activeTab !== "itinerary" && activeTab !== "map" && (
+        {activeTab === "chat" && (
+          <ChatTab
+            tripId={trip.id}
+            tripName={trip.name}
+            destination={trip.destination}
+          />
+        )}
+        {activeTab === "checklist" && (
           <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
-            <activeTabDef.Icon className="h-10 w-10 text-parchment-deep mb-4" aria-hidden="true" />
-            <p className="font-serif text-xl text-ink">{activeTabDef.label}</p>
-            <p className="mt-2 text-sm text-muted">
-              Coming in {activeTabDef.comingSoon}
-            </p>
+            <CheckSquare className="h-10 w-10 text-parchment-deep mb-4" aria-hidden="true" />
+            <p className="font-serif text-xl text-ink">Checklist</p>
+            <p className="mt-2 text-sm text-muted">Coming in Phase 7</p>
           </div>
         )}
       </main>
