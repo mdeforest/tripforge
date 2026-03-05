@@ -11,6 +11,8 @@ function makeStop(overrides: Partial<StopDetail> = {}): StopDetail {
     type: "activity",
     time: "10:00 AM",
     address: "Piazza del Colosseo, Rome",
+    lat: null,
+    lng: null,
     notes: "Book tickets in advance",
     order: 1,
     options: [],
@@ -23,6 +25,8 @@ function makeOption(overrides: Partial<StopOption> = {}): StopOption {
     name: "Roscioli Salumeria",
     type: "restaurant",
     address: null,
+    lat: null,
+    lng: null,
     notes: "Legendary deli counter.",
     order: 1,
     ...overrides,
@@ -41,16 +45,14 @@ describe("StopCard", () => {
     expect(screen.getByTestId("stop-icon")).toBeInTheDocument();
   });
 
-  it("is collapsed by default — address and notes are not visible", () => {
+  it("is collapsed by default — notes are not visible", () => {
     render(<StopCard stop={makeStop()} />);
-    expect(screen.queryByText("Piazza del Colosseo, Rome")).not.toBeInTheDocument();
     expect(screen.queryByText("Book tickets in advance")).not.toBeInTheDocument();
   });
 
-  it("expands when clicked — shows address and notes", async () => {
+  it("expands when clicked — shows notes", async () => {
     render(<StopCard stop={makeStop()} />);
     await userEvent.click(screen.getByRole("button"));
-    expect(screen.getByText("Piazza del Colosseo, Rome")).toBeInTheDocument();
     expect(screen.getByText("Book tickets in advance")).toBeInTheDocument();
   });
 
@@ -59,25 +61,9 @@ describe("StopCard", () => {
     const btn = screen.getByRole("button");
     await userEvent.click(btn);
     await userEvent.click(btn);
-    expect(screen.queryByText("Piazza del Colosseo, Rome")).not.toBeInTheDocument();
+    expect(screen.queryByText("Book tickets in advance")).not.toBeInTheDocument();
   });
 
-  it('shows a "Get Directions" link with the correct Google Maps href when address exists', async () => {
-    render(<StopCard stop={makeStop()} />);
-    await userEvent.click(screen.getByRole("button"));
-    const link = screen.getByRole("link", { name: /get directions/i });
-    expect(link).toBeInTheDocument();
-    expect(link).toHaveAttribute(
-      "href",
-      `https://maps.google.com/?q=${encodeURIComponent("Piazza del Colosseo, Rome")}`
-    );
-  });
-
-  it('does not show "Get Directions" when address is null', async () => {
-    render(<StopCard stop={makeStop({ address: null })} />);
-    await userEvent.click(screen.getByRole("button"));
-    expect(screen.queryByRole("link", { name: /get directions/i })).not.toBeInTheDocument();
-  });
 
   // ── Options ──────────────────────────────────────────────────────────────
 
@@ -124,18 +110,6 @@ describe("StopCard", () => {
     expect(screen.getByText("Legendary deli counter.")).toBeInTheDocument();
   });
 
-  it("shows option address as a directions link when present", async () => {
-    const stop = makeStop({
-      options: [makeOption({ address: "Piazza Navona area" })],
-    });
-    render(<StopCard stop={stop} />);
-    await userEvent.click(screen.getByRole("button"));
-    const link = screen.getByRole("link", { name: /piazza navona area/i });
-    expect(link).toHaveAttribute(
-      "href",
-      `https://maps.google.com/?q=${encodeURIComponent("Piazza Navona area")}`
-    );
-  });
 
   it("does not show options section when stop has no options", async () => {
     render(<StopCard stop={makeStop()} />);

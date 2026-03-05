@@ -5,6 +5,8 @@ export interface StopOption {
   name: string;
   type: OptionType;
   address: string | null;
+  lat: number | null;
+  lng: number | null;
   notes: string | null;
   order: number;
 }
@@ -16,6 +18,8 @@ export interface StopDetail {
   type: StopType;
   time: string | null;
   address: string | null;
+  lat: number | null;
+  lng: number | null;
   notes: string | null;
   order: number;
   options: StopOption[];

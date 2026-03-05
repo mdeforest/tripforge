@@ -1,46 +1,21 @@
 "use client";
 
-import { useState } from "react";
 import { DaySelector } from "@/components/DaySelector";
 import { StopCard } from "@/components/StopCard";
 import type { DayDetail } from "@/types/trip";
 
 interface ItineraryTabProps {
   days: DayDetail[];
-  startDate: string | null;
-  endDate: string | null;
-}
-
-/**
- * Returns the day_number that should be shown by default.
- *
- * If today falls within the trip date range and a day with a matching date
- * exists, that day is used. Otherwise falls back to day_number 1.
- */
-function getDefaultDayNumber(
-  days: DayDetail[],
-  startDate: string | null,
-  endDate: string | null
-): number {
-  if (startDate && endDate) {
-    const todayISO = new Date().toISOString().split("T")[0];
-    if (todayISO >= startDate && todayISO <= endDate) {
-      const match = days.find((d) => d.date?.startsWith(todayISO));
-      if (match) return match.day_number;
-    }
-  }
-  return days[0]?.day_number ?? 1;
+  selectedDay: number;
+  onSelectDay: (day: number) => void;
 }
 
 /**
  * Itinerary tab: day selector + stop list with a timeline connector.
- * Manages the selected-day state and delegates rendering to sub-components.
+ * Fully controlled — selected day state is owned by TripCompanionClient so it
+ * persists when the user switches between tabs.
  */
-export function ItineraryTab({ days, startDate, endDate }: ItineraryTabProps) {
-  const [selectedDay, setSelectedDay] = useState<number>(
-    () => getDefaultDayNumber(days, startDate, endDate)
-  );
-
+export function ItineraryTab({ days, selectedDay, onSelectDay }: ItineraryTabProps) {
   const currentDay = days.find((d) => d.day_number === selectedDay);
 
   return (
@@ -49,7 +24,7 @@ export function ItineraryTab({ days, startDate, endDate }: ItineraryTabProps) {
         <DaySelector
           days={days}
           selectedDay={selectedDay}
-          onSelect={setSelectedDay}
+          onSelect={onSelectDay}
         />
       )}
 

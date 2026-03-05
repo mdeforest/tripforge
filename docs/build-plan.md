@@ -140,19 +140,26 @@ Tasks:
 
 ---
 
-### Phase 5: Trip Companion — Maps
+### Phase 5: Trip Companion — Maps ✅
 
 **Goal:** Map view showing stops for the selected day with directions.
 
 Tasks:
-- Integrate Mapbox GL JS
-- Map tab showing pins for all stops on selected day that have addresses
-- Geocode addresses server-side using Mapbox Geocoding API (on trip creation)
-- Store lat/lng on Stop rows in DB
-- Numbered pins matching stop order
-- Tap pin → popup with stop name + "Get Directions" button
-- "Get Directions" links to `https://maps.google.com/?q={address}` (works on all platforms)
-- Graceful handling of stops with no geocodable address
+- Integrate Mapbox GL JS (CSS imported statically; JS loaded via dynamic `import()` in `useEffect` for SSR safety)
+- Map tab showing pins for all stops on selected day that have geocoded coordinates
+- Geocode addresses server-side using Mapbox Geocoding API v6 on trip creation
+- Lazy backfill geocoding in `app/(app)/trips/[id]/page.tsx`: geocodes stops AND stop options that have an address but no lat/lng, writes back to DB so subsequent loads are instant
+- Store lat/lng on Stop rows in DB; options coords stored in the JSON blob
+- **Pin types:**
+  - Brown "H" pin — active hotel (most recent hotel stop with coords on current day or earlier); if a day has hotel stops but none have coords, the scan stops there (prevents stale hotel from showing)
+  - Rust numbered pins — non-hotel stops with no options and unique coords (not at hotel location)
+  - Color-coded numbered pins — option pins, one color per parent stop cycling through a 5-color palette; numbered by parent stop's day-order position; parent stop itself is NOT shown as a numbered pin
+  - Stops at the same lat/lng as the active hotel are excluded from numbered pins
+- Tap pin → popup with name, address, "Get Directions" button (links to `https://maps.google.com/?q={address}`)
+- Map fits all pins on first view; restores saved viewport on return to same day
+- Legend shows Hotel pin indicator only (rendered below map when `activeHotel` is present)
+- DaySelector: scrollbar hidden (`[&::-webkit-scrollbar]:hidden` + `scrollbarWidth:none`) for clean swipeable strip
+- Graceful fallback: "No mappable stops for this day" empty state
 
 **Tests (Phase 5):**
 - `tests/unit/lib/geocode.test.ts` — geocodeAddress utility: success, Mapbox error, no results, null address input
@@ -320,6 +327,18 @@ Without an explicit rule, the parse model sometimes copies description text, dir
 v1: `const pdfParse = require("pdf-parse"); await pdfParse(buffer)` → function call
 v2: `const { PDFParse } = require("pdf-parse"); await new PDFParse({ data: buffer }).getText()`
 Also: dynamic `import("pdf-parse").default` returns `undefined` under Next.js; use `require()` instead.
+
+**Mapbox GL JS cannot be tested in jsdom — use env-guard pattern**
+`vi.mock("mapbox-gl", ...)` does NOT reliably intercept `import("mapbox-gl")` dynamic imports inside `useEffect`. Safe pattern: set `NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN` to `""` via `vi.stubEnv` so the early-return guard in MapTab fires before the dynamic import is reached. Test DOM structure only; map initialization is untestable in jsdom. Add the guard at the top of `useEffect`:
+```ts
+if (!process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN) return;
+```
+
+**Mapbox Geocoding API — use v6 endpoint**
+The v5 endpoint (`api.mapbox.com/geocoding/v5/mapbox.places`) is deprecated. Use v6 (`api.mapbox.com/search/geocode/v6/forward?q=...&access_token=...`). Response shape differs: coordinates are at `features[0].geometry.coordinates` (same) but the result structure changed.
+
+**Map pin numbering uses day-order position across all non-hotel stops**
+`allStopNumber` is built from ALL non-hotel stops in the day (in order), not just the visible numbered pins. This ensures option pins have the same number as their parent stop, even when the parent stop itself has no visible pin (e.g. it was suppressed for sharing the hotel's coordinates). Visible numbered pins (`stopsWithCoords`) exclude: hotel-type stops, stops with options (represented by their option pins instead), and stops at the same lat/lng as the active hotel.
 
 **`request.formData()` hangs in jsdom when body contains a `File` object**
 jsdom cannot serialize/deserialize multipart binary data (File objects in FormData). `new Request(url, { body: formData })` followed by `request.formData()` will hang indefinitely when the FormData contains a File. Fix: mock the Request directly so `formData()` returns the FormData without parsing:

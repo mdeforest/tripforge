@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { TripCompanionClient } from "@/components/TripCompanionClient";
+import { geocodeAddress } from "@/lib/geocode";
 import type { TripDetail, StopOption } from "@/types/trip";
 
 interface TripPageProps {
@@ -39,6 +40,8 @@ export default async function TripPage({ params }: TripPageProps) {
               type: true,
               time: true,
               address: true,
+              lat: true,
+              lng: true,
               notes: true,
               order: true,
               options: true,
@@ -50,6 +53,54 @@ export default async function TripPage({ params }: TripPageProps) {
   });
 
   if (!trip || trip.user_id !== session.user.id) notFound();
+
+  // Backfill geocoding for stops and their options that have addresses but no coordinates.
+  // Runs on first load for trips created before geocoding was added; writes back to DB
+  // so subsequent loads are instant.
+  await Promise.all(
+    trip.days.flatMap((day) =>
+      day.stops.map(async (stop) => {
+        // 1. Geocode the stop itself if needed.
+        if (stop.address && stop.lat == null && stop.lng == null) {
+          const coords = await geocodeAddress(stop.address);
+          if (coords) {
+            await prisma.stop.update({
+              where: { id: stop.id },
+              data: { lat: coords.lat, lng: coords.lng },
+            });
+            stop.lat = coords.lat;
+            stop.lng = coords.lng;
+          }
+        }
+
+        // 2. Geocode any options that need it.
+        const raw = Array.isArray(stop.options)
+          ? (stop.options as unknown as StopOption[])
+          : [];
+        const needsGeocode = raw.some(
+          (opt) => opt.address && opt.lat == null && opt.lng == null
+        );
+        if (!needsGeocode) return;
+
+        const enriched = await Promise.all(
+          raw.map(async (opt) => {
+            if (!opt.address || (opt.lat != null && opt.lng != null)) return opt;
+            const coords = await geocodeAddress(opt.address);
+            return { ...opt, lat: coords?.lat ?? null, lng: coords?.lng ?? null };
+          })
+        );
+
+        await prisma.stop.update({
+          where: { id: stop.id },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          data: { options: enriched as any },
+        });
+
+        // Mutate in-place so the serialization below picks up the new coords.
+        (stop.options as unknown) = enriched;
+      })
+    )
+  );
 
   // Serialize Date objects to ISO strings before passing to the client component
   const tripDetail: TripDetail = {
@@ -70,6 +121,8 @@ export default async function TripPage({ params }: TripPageProps) {
         type: stop.type,
         time: stop.time,
         address: stop.address,
+        lat: stop.lat,
+        lng: stop.lng,
         notes: stop.notes,
         order: stop.order,
         options: Array.isArray(stop.options) ? (stop.options as StopOption[]) : [],

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("next-auth", () => ({ getServerSession: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ authOptions: {} }));
+vi.mock("@/lib/geocode", () => ({ geocodeAddress: vi.fn().mockResolvedValue(null) }));
 
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";

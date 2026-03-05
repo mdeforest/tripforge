@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { geocodeAddress } from "@/lib/geocode";
 
 /**
  * GET /api/trips
@@ -120,6 +121,20 @@ export async function POST(request: Request) {
 
   const { parsedData, rawText } = parsed.data;
 
+  // Geocode all stop + option addresses in parallel (failures silently return null).
+  // Order: [stop1Addr, stop1Opt1Addr, stop1Opt2Addr, stop2Addr, stop2Opt1Addr, ...]
+  const geocodeResults = await Promise.all(
+    parsedData.days.flatMap((day) =>
+      day.stops.flatMap((stop) => [
+        geocodeAddress(stop.address),
+        ...stop.options.map((opt) => geocodeAddress(opt.address)),
+      ])
+    )
+  );
+
+  // Consume geocode results in the same interleaved order above.
+  let coordIdx = 0;
+
   try {
     const trip = await prisma.trip.create({
       data: {
@@ -137,15 +152,24 @@ export async function POST(request: Request) {
             title: day.title,
             notes: day.notes,
             stops: {
-              create: day.stops.map((stop) => ({
-                name: stop.name,
-                type: stop.type,
-                time: stop.time,
-                address: stop.address,
-                notes: stop.notes,
-                order: stop.order,
-                options: stop.options.length > 0 ? stop.options : undefined,
-              })),
+              create: day.stops.map((stop) => {
+                const coords = geocodeResults[coordIdx++];
+                const geocodedOptions = stop.options.map((opt) => {
+                  const optCoords = geocodeResults[coordIdx++];
+                  return { ...opt, lat: optCoords?.lat ?? null, lng: optCoords?.lng ?? null };
+                });
+                return {
+                  name: stop.name,
+                  type: stop.type,
+                  time: stop.time,
+                  address: stop.address,
+                  lat: coords?.lat ?? null,
+                  lng: coords?.lng ?? null,
+                  notes: stop.notes,
+                  order: stop.order,
+                  options: geocodedOptions.length > 0 ? geocodedOptions : undefined,
+                };
+              }),
             },
           })),
         },

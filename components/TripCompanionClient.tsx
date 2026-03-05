@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -11,13 +11,15 @@ import {
   CheckSquare,
 } from "lucide-react";
 import { ItineraryTab } from "@/components/ItineraryTab";
-import type { TripDetail } from "@/types/trip";
+import { MapTab } from "@/components/MapTab";
+import type { MapViewport } from "@/components/MapTab";
+import type { TripDetail, DayDetail } from "@/types/trip";
 
 type Tab = "itinerary" | "map" | "chat" | "checklist";
 
 const TABS: { id: Tab; label: string; Icon: React.ElementType; comingSoon?: string }[] = [
   { id: "itinerary", label: "Itinerary", Icon: List },
-  { id: "map",       label: "Map",       Icon: Map,           comingSoon: "Phase 5" },
+  { id: "map",       label: "Map",       Icon: Map },
   { id: "chat",      label: "Chat",      Icon: MessageCircle, comingSoon: "Phase 6" },
   { id: "checklist", label: "Checklist", Icon: CheckSquare,   comingSoon: "Phase 7" },
 ];
@@ -27,19 +29,42 @@ interface TripCompanionClientProps {
 }
 
 /**
+ * Returns the day_number to show by default.
+ * Selects today's day if today falls within the trip date range, else Day 1.
+ */
+function getDefaultDayNumber(
+  days: DayDetail[],
+  startDate: string | null,
+  endDate: string | null
+): number {
+  if (startDate && endDate) {
+    const todayISO = new Date().toISOString().split("T")[0];
+    if (todayISO >= startDate && todayISO <= endDate) {
+      const match = days.find((d) => d.date?.startsWith(todayISO));
+      if (match) return match.day_number;
+    }
+  }
+  return days[0]?.day_number ?? 1;
+}
+
+/**
  * Full-page trip companion UI.
- * Manages the active tab, renders a sticky header, scrollable content area,
- * and a fixed bottom tab bar.
+ * Manages the active tab and the selected day (shared across tabs so switching
+ * tabs preserves the day you were viewing).
  */
 export function TripCompanionClient({ trip }: TripCompanionClientProps) {
   const [activeTab, setActiveTab] = useState<Tab>("itinerary");
+  const [selectedDay, setSelectedDay] = useState<number>(
+    () => getDefaultDayNumber(trip.days, trip.start_date, trip.end_date)
+  );
+  const mapViewportRef = useRef<MapViewport | null>(null);
 
   const activeTabDef = TABS.find((t) => t.id === activeTab)!;
 
   return (
-    <div className="flex flex-col min-h-[calc(100dvh-64px)]">
+    <div className="flex flex-col min-h-[calc(100dvh-56px)]">
       {/* Sticky header */}
-      <header className="sticky top-16 z-10 bg-cream border-b border-parchment-dark">
+      <header className="sticky top-14 z-10 bg-cream border-b border-parchment-dark">
         <div className="flex items-start gap-3 px-4 py-3 max-w-2xl mx-auto w-full">
           <Link
             href="/dashboard"
@@ -62,13 +87,23 @@ export function TripCompanionClient({ trip }: TripCompanionClientProps) {
 
       {/* Scrollable content */}
       <main className="flex-1 pb-20 max-w-2xl mx-auto w-full">
-        {activeTab === "itinerary" ? (
+        {activeTab === "itinerary" && (
           <ItineraryTab
             days={trip.days}
-            startDate={trip.start_date}
-            endDate={trip.end_date}
+            selectedDay={selectedDay}
+            onSelectDay={setSelectedDay}
           />
-        ) : (
+        )}
+        {activeTab === "map" && (
+          <MapTab
+            days={trip.days}
+            selectedDay={selectedDay}
+            onSelectDay={setSelectedDay}
+            savedViewport={mapViewportRef.current}
+            onViewportChange={(vp) => { mapViewportRef.current = vp; }}
+          />
+        )}
+        {activeTab !== "itinerary" && activeTab !== "map" && (
           <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
             <activeTabDef.Icon className="h-10 w-10 text-parchment-deep mb-4" aria-hidden="true" />
             <p className="font-serif text-xl text-ink">{activeTabDef.label}</p>

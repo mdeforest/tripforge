@@ -33,19 +33,19 @@ function OptionItem({ option }: { option: StopOption }) {
           <Icon className="h-3 w-3 shrink-0 text-muted" aria-hidden="true" />
           <span className="text-sm font-medium text-ink leading-tight">{option.name}</span>
         </div>
-        {option.notes && (
-          <p className="mt-0.5 text-xs text-muted italic">{option.notes}</p>
-        )}
         {option.address && (
           <a
             href={`https://maps.google.com/?q=${encodeURIComponent(option.address)}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-1 inline-flex items-center gap-0.5 text-xs text-rust hover:text-rust-dark font-medium"
+            className="mt-0.5 inline-flex items-center gap-0.5 text-xs text-rust hover:text-rust-dark"
           >
+            <MapPin className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />
             {option.address}
-            <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
           </a>
+        )}
+        {option.notes && (
+          <p className="mt-0.5 text-xs text-muted italic">{option.notes}</p>
         )}
       </div>
     </div>
@@ -106,13 +106,13 @@ export function StopCard({ stop }: StopCardProps) {
 
       {expanded && hasDetails && (
         <div className="px-4 pb-4 pt-1 border-t border-parchment space-y-2">
-          {stop.address && (
+          {!hasOptions && stop.address && (
             <p className="text-sm text-ink-mid">{stop.address}</p>
           )}
           {stop.notes && (
             <p className="text-sm text-muted italic">{stop.notes}</p>
           )}
-          {stop.address && (
+          {!hasOptions && stop.address && (
             <a
               href={`https://maps.google.com/?q=${encodeURIComponent(stop.address)}`}
               target="_blank"

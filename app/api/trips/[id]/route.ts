@@ -54,6 +54,8 @@ export async function GET(
                 type: true,
                 time: true,
                 address: true,
+                lat: true,
+                lng: true,
                 notes: true,
                 order: true,
               },
