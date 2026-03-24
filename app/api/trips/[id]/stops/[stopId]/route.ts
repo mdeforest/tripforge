@@ -1,3 +1,17 @@
+/**
+ * PATCH /api/trips/[id]/stops/[stopId]
+ *
+ * Updates the address and coordinates of a stop.
+ * Verifies ownership via stop → day → trip join.
+ *
+ * Responses:
+ *   200 { stop: { id, address, lat, lng } }
+ *   400 { error, code: "VALIDATION_ERROR" }
+ *   401 { error, code: "UNAUTHORIZED" }
+ *   403 { error, code: "FORBIDDEN" }
+ *   404 { error, code: "NOT_FOUND" }
+ *   500 { error, code: "INTERNAL_ERROR" }
+ */
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
