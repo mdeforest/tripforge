@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Bed, Utensils, Star, Car, MapPin, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
+import { Bed, Utensils, Star, Car, MapPin, ExternalLink, ChevronDown, ChevronUp, Pencil } from "lucide-react";
 import type { StopDetail, StopOption } from "@/types/trip";
 
 const STOP_ICONS = {
@@ -19,6 +19,7 @@ const OPTION_ICONS = {
 
 interface StopCardProps {
   stop: StopDetail;
+  onEdit?: () => void;
 }
 
 function OptionItem({ option }: { option: StopOption }) {
@@ -57,7 +58,7 @@ function OptionItem({ option }: { option: StopOption }) {
  * Collapsed: icon + name + time + options badge (when options exist).
  * Expanded: address, notes, Get Directions link, and options list.
  */
-export function StopCard({ stop }: StopCardProps) {
+export function StopCard({ stop, onEdit }: StopCardProps) {
   const [expanded, setExpanded] = useState(false);
 
   const Icon = STOP_ICONS[stop.type] ?? MapPin;
@@ -66,23 +67,25 @@ export function StopCard({ stop }: StopCardProps) {
 
   return (
     <div className="rounded-xl bg-white shadow-sm overflow-hidden">
-      <button
-        className="w-full flex items-center gap-3 px-4 py-3 text-left"
-        onClick={() => setExpanded((v) => !v)}
-        aria-expanded={expanded}
-        aria-label={`${stop.name}${stop.time ? `, ${stop.time}` : ""}`}
-      >
-        <span
-          data-testid="stop-icon"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-parchment text-rust"
-          aria-hidden="true"
+      <div className="flex items-center gap-3 px-4 py-3">
+        <button
+          className="flex flex-1 min-w-0 items-center gap-3 text-left"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          aria-label={`${stop.name}${stop.time ? `, ${stop.time}` : ""}`}
         >
-          <Icon className="h-4 w-4" />
-        </span>
+          <span
+            data-testid="stop-icon"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-parchment text-rust"
+            aria-hidden="true"
+          >
+            <Icon className="h-4 w-4" />
+          </span>
 
-        <span className="flex-1 min-w-0">
-          <span className="block font-medium text-ink leading-tight truncate">{stop.name}</span>
-        </span>
+          <span className="flex-1 min-w-0">
+            <span className="block font-medium text-ink leading-tight truncate">{stop.name}</span>
+          </span>
+        </button>
 
         <span className="flex items-center gap-1.5 shrink-0">
           {stop.time && (
@@ -96,13 +99,32 @@ export function StopCard({ stop }: StopCardProps) {
               {stop.options.length} options
             </span>
           )}
+          {onEdit && (
+            <button
+              type="button"
+              aria-label="Edit location"
+              onClick={() => onEdit()}
+              className="rounded p-0.5 text-muted hover:text-rust transition-colors"
+            >
+              <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          )}
           {hasDetails && (
-            expanded
-              ? <ChevronUp className="h-4 w-4 text-muted" aria-hidden="true" />
-              : <ChevronDown className="h-4 w-4 text-muted" aria-hidden="true" />
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              aria-hidden="true"
+              tabIndex={-1}
+              className="rounded p-0.5 text-muted"
+            >
+              {expanded
+                ? <ChevronUp className="h-4 w-4" aria-hidden="true" />
+                : <ChevronDown className="h-4 w-4" aria-hidden="true" />
+              }
+            </button>
           )}
         </span>
-      </button>
+      </div>
 
       {expanded && hasDetails && (
         <div className="px-4 pb-4 pt-1 border-t border-parchment space-y-2">

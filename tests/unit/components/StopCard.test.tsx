@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StopCard } from "@/components/StopCard";
@@ -115,5 +115,29 @@ describe("StopCard", () => {
     render(<StopCard stop={makeStop()} />);
     await userEvent.click(screen.getByRole("button"));
     expect(screen.queryByText("Options")).not.toBeInTheDocument();
+  });
+
+  // ── Edit button ──────────────────────────────────────────────────────────
+
+  it("does not render pencil button when onEdit is not provided", () => {
+    render(<StopCard stop={makeStop()} />);
+    expect(screen.queryByRole("button", { name: /edit location/i })).not.toBeInTheDocument();
+  });
+
+  it("renders pencil button when onEdit is provided", () => {
+    render(<StopCard stop={makeStop()} onEdit={vi.fn()} />);
+    expect(screen.getByRole("button", { name: /edit location/i })).toBeInTheDocument();
+  });
+
+  it("renders pencil button even when address is null", () => {
+    render(<StopCard stop={makeStop({ address: null })} onEdit={vi.fn()} />);
+    expect(screen.getByRole("button", { name: /edit location/i })).toBeInTheDocument();
+  });
+
+  it("calls onEdit when pencil button is clicked", async () => {
+    const onEdit = vi.fn();
+    render(<StopCard stop={makeStop()} onEdit={onEdit} />);
+    await userEvent.click(screen.getByRole("button", { name: /edit location/i }));
+    expect(onEdit).toHaveBeenCalledTimes(1);
   });
 });
