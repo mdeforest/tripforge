@@ -14,6 +14,7 @@ import { ItineraryTab } from "@/components/ItineraryTab";
 import { MapTab } from "@/components/MapTab";
 import { ChatTab } from "@/components/ChatTab";
 import { ChecklistTab } from "@/components/ChecklistTab";
+import { EditLocationModal } from "@/components/EditLocationModal";
 import type { MapViewport } from "@/components/MapTab";
 import type { TripDetail, DayDetail, ChecklistItem } from "@/types/trip";
 
@@ -61,6 +62,27 @@ export function TripCompanionClient({ trip, checklist }: TripCompanionClientProp
     () => getDefaultDayNumber(trip.days, trip.start_date, trip.end_date)
   );
   const mapViewportRef = useRef<MapViewport | null>(null);
+  const [tripState, setTripState] = useState<TripDetail>(() => trip);
+  const [editingStopId, setEditingStopId] = useState<string | null>(null);
+  const [mapKey, setMapKey] = useState(0);
+
+  const editingStop = editingStopId
+    ? (tripState.days.flatMap((d) => d.stops).find((s) => s.id === editingStopId) ?? null)
+    : null;
+
+  function handleLocationSave(stopId: string, address: string, lat: number, lng: number) {
+    setTripState((prev) => ({
+      ...prev,
+      days: prev.days.map((day) => ({
+        ...day,
+        stops: day.stops.map((stop) =>
+          stop.id === stopId ? { ...stop, address, lat, lng } : stop
+        ),
+      })),
+    }));
+    setMapKey((k) => k + 1);
+    setEditingStopId(null);
+  }
 
   return (
     <div className="flex flex-col min-h-[calc(100dvh-56px)]">
@@ -76,11 +98,11 @@ export function TripCompanionClient({ trip, checklist }: TripCompanionClientProp
           </Link>
           <div className="min-w-0">
             <h1 className="font-serif text-xl font-semibold text-ink leading-tight truncate">
-              {trip.name}
+              {tripState.name}
             </h1>
             <div className="flex items-center gap-1.5 mt-0.5 text-sm text-muted">
               <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span className="truncate">{trip.destination}</span>
+              <span className="truncate">{tripState.destination}</span>
             </div>
           </div>
         </div>
@@ -90,29 +112,32 @@ export function TripCompanionClient({ trip, checklist }: TripCompanionClientProp
       <main className="flex-1 pb-20 max-w-2xl mx-auto w-full">
         {activeTab === "itinerary" && (
           <ItineraryTab
-            days={trip.days}
+            days={tripState.days}
             selectedDay={selectedDay}
             onSelectDay={setSelectedDay}
+            onEditStop={(id) => setEditingStopId(id)}
           />
         )}
         {activeTab === "map" && (
           <MapTab
-            days={trip.days}
+            key={mapKey}
+            days={tripState.days}
             selectedDay={selectedDay}
             onSelectDay={setSelectedDay}
             savedViewport={mapViewportRef.current}
             onViewportChange={(vp) => { mapViewportRef.current = vp; }}
+            onEditStop={(id) => setEditingStopId(id)}
           />
         )}
         {activeTab === "chat" && (
           <ChatTab
-            tripId={trip.id}
-            tripName={trip.name}
-            destination={trip.destination}
+            tripId={tripState.id}
+            tripName={tripState.name}
+            destination={tripState.destination}
           />
         )}
         {activeTab === "checklist" && (
-          <ChecklistTab tripId={trip.id} initialItems={checklist} />
+          <ChecklistTab tripId={tripState.id} initialItems={checklist} />
         )}
       </main>
 
@@ -142,6 +167,15 @@ export function TripCompanionClient({ trip, checklist }: TripCompanionClientProp
           })}
         </div>
       </nav>
+
+      {editingStop && (
+        <EditLocationModal
+          stop={editingStop}
+          tripId={tripState.id}
+          onSave={handleLocationSave}
+          onClose={() => setEditingStopId(null)}
+        />
+      )}
     </div>
   );
 }

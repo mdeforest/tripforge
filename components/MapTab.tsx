@@ -23,6 +23,8 @@ interface MapTabProps {
   savedViewport?: MapViewport | null;
   /** Called on every map moveend so the parent can persist the viewport. */
   onViewportChange?: (viewport: MapViewport) => void;
+  /** Called when the user clicks "Edit location" in a popup. */
+  onEditStop?: (stopId: string) => void;
 }
 
 interface OptionPin {
@@ -44,6 +46,7 @@ export function MapTab({
   onSelectDay,
   savedViewport,
   onViewportChange,
+  onEditStop,
 }: MapTabProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -91,6 +94,15 @@ export function MapTab({
   });
 
   const hasAnyPins = stopsWithCoords.length > 0 || optionsWithCoords.length > 0 || activeHotel != null;
+
+  const handlePopupClick = (e: MouseEvent) => {
+    const target = e.target as HTMLElement;
+    const editBtn = target.closest("[data-edit-stop]") as HTMLElement | null;
+    if (editBtn) {
+      e.preventDefault();
+      onEditStop?.(editBtn.getAttribute("data-edit-stop")!);
+    }
+  };
 
   useEffect(() => {
     if (!mapContainer.current) return;
@@ -189,7 +201,8 @@ export function MapTab({
             `<p style="margin:0 0 2px;font-size:10px;color:#9A8570;font-family:sans-serif;text-transform:uppercase;letter-spacing:0.04em">Staying here</p>` +
             `<p style="margin:0 0 ${activeHotel.address ? "4px" : "12px"};padding-right:20px;font-family:'Cormorant Garamond',Georgia,serif;font-weight:600;font-size:16px;color:#1C1208;line-height:1.3">${activeHotel.name}</p>` +
             (activeHotel.address ? `<p style="margin:0 0 12px;font-size:11px;color:#9A8570;line-height:1.5">${activeHotel.address}</p>` : "") +
-            `<a href="${directionsHref}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:6px 14px;background:#6B4C2A;color:#fff;border-radius:7px;font-size:12px;font-weight:500;text-decoration:none;font-family:sans-serif">Get Directions</a>`
+            `<a href="${directionsHref}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:6px 14px;background:#6B4C2A;color:#fff;border-radius:7px;font-size:12px;font-weight:500;text-decoration:none;font-family:sans-serif">Get Directions</a>` +
+            `<br><a data-edit-stop="${activeHotel.id}" href="#" style="display:inline-block;margin-top:6px;font-size:11px;color:#9A8570;font-family:sans-serif;text-decoration:underline">Edit location</a>`
           );
 
           new mapboxgl.Marker(el)
@@ -231,7 +244,8 @@ export function MapTab({
           const popup = new mapboxgl.Popup({ offset: 16 }).setHTML(
             `<p style="margin:0 0 ${stop.address ? "4px" : "12px"};padding-right:20px;font-family:'Cormorant Garamond',Georgia,serif;font-weight:600;font-size:16px;color:#1C1208;line-height:1.3">${stop.name}</p>` +
             (stop.address ? `<p style="margin:0 0 12px;font-size:11px;color:#9A8570;line-height:1.5">${stop.address}</p>` : "") +
-            `<a href="${directionsHref}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:6px 14px;background:#B85C30;color:#fff;border-radius:7px;font-size:12px;font-weight:500;text-decoration:none;font-family:sans-serif">Get Directions</a>`
+            `<a href="${directionsHref}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:6px 14px;background:#B85C30;color:#fff;border-radius:7px;font-size:12px;font-weight:500;text-decoration:none;font-family:sans-serif">Get Directions</a>` +
+            `<br><a data-edit-stop="${stop.id}" href="#" style="display:inline-block;margin-top:6px;font-size:11px;color:#9A8570;font-family:sans-serif;text-decoration:underline">Edit location</a>`
           );
 
           new mapboxgl.Marker(el)
@@ -295,6 +309,8 @@ export function MapTab({
         }
       }
 
+      mapContainer.current.addEventListener("click", handlePopupClick);
+
       // Persist viewport whenever the user pans or zooms.
       map.on("moveend", () => {
         if (!cancelled) {
@@ -309,6 +325,7 @@ export function MapTab({
 
     return () => {
       cancelled = true;
+      mapContainer.current?.removeEventListener("click", handlePopupClick);
       mapRef.current?.remove();
       mapRef.current = null;
     };

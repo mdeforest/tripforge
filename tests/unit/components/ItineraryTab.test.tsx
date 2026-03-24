@@ -75,4 +75,18 @@ describe("ItineraryTab", () => {
     await userEvent.click(screen.getByText(/Day 2/));
     expect(onSelectDay).toHaveBeenCalledWith(2);
   });
+
+  it("calls onEditStop with the stop id when the pencil button is clicked", async () => {
+    const onEditStop = vi.fn();
+    render(
+      <ItineraryTab
+        days={DAYS}
+        selectedDay={1}
+        onSelectDay={vi.fn()}
+        onEditStop={onEditStop}
+      />
+    );
+    await userEvent.click(screen.getByRole("button", { name: /edit location/i }));
+    expect(onEditStop).toHaveBeenCalledWith("s1");
+  });
 });

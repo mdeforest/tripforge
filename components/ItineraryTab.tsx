@@ -8,6 +8,7 @@ interface ItineraryTabProps {
   days: DayDetail[];
   selectedDay: number;
   onSelectDay: (day: number) => void;
+  onEditStop?: (stopId: string) => void;
 }
 
 /**
@@ -15,7 +16,7 @@ interface ItineraryTabProps {
  * Fully controlled — selected day state is owned by TripCompanionClient so it
  * persists when the user switches between tabs.
  */
-export function ItineraryTab({ days, selectedDay, onSelectDay }: ItineraryTabProps) {
+export function ItineraryTab({ days, selectedDay, onSelectDay, onEditStop }: ItineraryTabProps) {
   const currentDay = days.find((d) => d.day_number === selectedDay);
 
   return (
@@ -36,7 +37,7 @@ export function ItineraryTab({ days, selectedDay, onSelectDay }: ItineraryTabPro
         ) : (
           <div className="relative border-l-2 border-parchment-deep ml-5 pl-4 space-y-3">
             {currentDay.stops.map((stop) => (
-              <StopCard key={stop.id} stop={stop} />
+              <StopCard key={stop.id} stop={stop} onEdit={onEditStop ? () => onEditStop(stop.id) : undefined} />
             ))}
           </div>
         )}
