@@ -4,10 +4,12 @@ import { useState } from "react";
 import { UploadForm } from "@/components/UploadForm";
 import { ReviewTrip } from "@/components/ReviewTrip";
 import type { ParsedItinerary } from "@/types/itinerary";
+import type { PackingItem } from "@/lib/prompts/packing-list";
 
 interface ParsedResult {
   parsedData: ParsedItinerary;
   rawText: string;
+  packingList: PackingItem[];
 }
 
 /**
@@ -33,6 +35,7 @@ export function NewTripClient() {
       <ReviewTrip
         parsedData={parsed.parsedData}
         rawText={parsed.rawText}
+        packingList={parsed.packingList}
         onBack={handleBack}
       />
     );

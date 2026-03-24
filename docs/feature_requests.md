@@ -6,3 +6,5 @@
 * Allow "pinning" of additional places from the chat
 * Store Chat history
 * Use AI to suggest questions every time the ai chat is opened.
+* sharing itineraries
+* tips specific to the trip, activities, and pois

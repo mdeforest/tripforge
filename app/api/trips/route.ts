@@ -76,6 +76,12 @@ const daySchema = z.object({
   stops: z.array(stopSchema),
 });
 
+const packingItemSchema = z.object({
+  category: z.string().min(1),
+  label: z.string().min(1),
+  reason: z.string().nullable().optional(),
+});
+
 const createTripSchema = z.object({
   parsedData: z.object({
     tripName: z.string().min(1),
@@ -86,12 +92,15 @@ const createTripSchema = z.object({
     days: z.array(daySchema),
   }),
   rawText: z.string().min(1),
+  packingList: z.array(packingItemSchema).optional().default([]),
 });
 
 /**
  * POST /api/trips
  *
  * Creates a trip with nested days and stops from confirmed parsed data.
+ * After creating the trip, generates a packing list via AI and saves it
+ * as ChecklistItems. Packing list generation fails silently.
  *
  * Request:  { parsedData: ParsedItinerary, rawText: string }
  * Response: { trip: { id, name, destination } }
@@ -119,10 +128,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const { parsedData, rawText } = parsed.data;
+  const { parsedData, rawText, packingList } = parsed.data;
 
-  // Geocode all stop + option addresses in parallel (failures silently return null).
-  // Order: [stop1Addr, stop1Opt1Addr, stop1Opt2Addr, stop2Addr, stop2Opt1Addr, ...]
+  // Geocode all stop addresses before touching the DB.
+  // Results are in the same interleaved order: [stop1Addr, stop1Opt1Addr, ..., stop2Addr, ...]
   const geocodeResults = await Promise.all(
     parsedData.days.flatMap((day) =>
       day.stops.flatMap((stop) => [
@@ -176,6 +185,18 @@ export async function POST(request: Request) {
       },
       select: { id: true, name: true, destination: true },
     });
+
+    // Persist AI-generated packing list items (best-effort; silent on failure).
+    if (packingList.length > 0) {
+      await prisma.checklistItem.createMany({
+        data: packingList.map((item) => ({
+          trip_id: trip.id,
+          category: item.category,
+          label: item.label,
+          reason: item.reason ?? null,
+        })),
+      }).catch(() => {});
+    }
 
     return NextResponse.json({ trip }, { status: 201 });
   } catch {

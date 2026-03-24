@@ -13,20 +13,22 @@ import {
 import { ItineraryTab } from "@/components/ItineraryTab";
 import { MapTab } from "@/components/MapTab";
 import { ChatTab } from "@/components/ChatTab";
+import { ChecklistTab } from "@/components/ChecklistTab";
 import type { MapViewport } from "@/components/MapTab";
-import type { TripDetail, DayDetail } from "@/types/trip";
+import type { TripDetail, DayDetail, ChecklistItem } from "@/types/trip";
 
 type Tab = "itinerary" | "map" | "chat" | "checklist";
 
-const TABS: { id: Tab; label: string; Icon: React.ElementType; comingSoon?: string }[] = [
+const TABS: { id: Tab; label: string; Icon: React.ElementType }[] = [
   { id: "itinerary", label: "Itinerary", Icon: List },
   { id: "map",       label: "Map",       Icon: Map },
   { id: "chat",      label: "Chat",      Icon: MessageCircle },
-  { id: "checklist", label: "Checklist", Icon: CheckSquare,   comingSoon: "Phase 7" },
+  { id: "checklist", label: "Checklist", Icon: CheckSquare },
 ];
 
 interface TripCompanionClientProps {
   trip: TripDetail;
+  checklist: ChecklistItem[];
 }
 
 /**
@@ -53,14 +55,12 @@ function getDefaultDayNumber(
  * Manages the active tab and the selected day (shared across tabs so switching
  * tabs preserves the day you were viewing).
  */
-export function TripCompanionClient({ trip }: TripCompanionClientProps) {
+export function TripCompanionClient({ trip, checklist }: TripCompanionClientProps) {
   const [activeTab, setActiveTab] = useState<Tab>("itinerary");
   const [selectedDay, setSelectedDay] = useState<number>(
     () => getDefaultDayNumber(trip.days, trip.start_date, trip.end_date)
   );
   const mapViewportRef = useRef<MapViewport | null>(null);
-
-  const activeTabDef = TABS.find((t) => t.id === activeTab)!;
 
   return (
     <div className="flex flex-col min-h-[calc(100dvh-56px)]">
@@ -112,11 +112,7 @@ export function TripCompanionClient({ trip }: TripCompanionClientProps) {
           />
         )}
         {activeTab === "checklist" && (
-          <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
-            <CheckSquare className="h-10 w-10 text-parchment-deep mb-4" aria-hidden="true" />
-            <p className="font-serif text-xl text-ink">Checklist</p>
-            <p className="mt-2 text-sm text-muted">Coming in Phase 7</p>
-          </div>
+          <ChecklistTab tripId={trip.id} initialItems={checklist} />
         )}
       </main>
 

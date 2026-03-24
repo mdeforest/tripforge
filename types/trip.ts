@@ -48,3 +48,13 @@ export interface TripDetail {
   end_date: string | null;
   days: DayDetail[];
 }
+
+/** A single packing checklist item, as stored in the DB. */
+export interface ChecklistItem {
+  id: string;
+  category: string;
+  label: string;
+  reason: string | null;
+  checked: boolean;
+  is_custom: boolean;
+}

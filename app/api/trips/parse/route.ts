@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth";
 import { extractRawText, ExtractionError } from "@/lib/extractText";
 import { parseItinerary, ParseError } from "@/lib/parseItinerary";
 import { enrichAddresses } from "@/lib/enrichAddresses";
+import { generatePackingList } from "@/lib/generatePackingList";
 import { NextResponse } from "next/server";
 
 /**
@@ -13,7 +14,7 @@ import { NextResponse } from "next/server";
  *   - file:          File   — PDF, DOCX, or TXT file
  *   - googleDocsUrl: string — public Google Docs share URL
  *
- * Returns { parsedData: ParsedItinerary, rawText: string }
+ * Returns { parsedData: ParsedItinerary, rawText: string, packingList: PackingItem[] }
  *
  * Error codes:
  *   401 UNAUTHORIZED       — not authenticated
@@ -73,12 +74,14 @@ export async function POST(request: Request) {
   }
 
   // Step 2: Parse the itinerary via the configured AI provider
-  const provider = process.env.AI_PROVIDER ?? "claude";
-  console.log(`[parse] Using AI provider: ${provider}`);
   try {
     const parsed = await parseItinerary(rawText);
-    const parsedData = await enrichAddresses(parsed);
-    return NextResponse.json({ parsedData, rawText });
+    // Run address enrichment and packing list generation in parallel
+    const [parsedData, packingList] = await Promise.all([
+      enrichAddresses(parsed),
+      generatePackingList(parsed).catch(() => []),
+    ]);
+    return NextResponse.json({ parsedData, rawText, packingList });
   } catch (err) {
     if (err instanceof ParseError) {
       console.error("[parse] ParseError:", err.message);

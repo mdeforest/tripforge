@@ -4,10 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { MapPin, Calendar, Layers, ArrowLeft, Loader2 } from "lucide-react";
 import type { ParsedItinerary } from "@/types/itinerary";
+import type { PackingItem } from "@/lib/prompts/packing-list";
 
 interface ReviewTripProps {
   parsedData: ParsedItinerary;
   rawText: string;
+  packingList: PackingItem[];
   onBack: () => void;
 }
 
@@ -25,7 +27,7 @@ function formatDate(iso: string | null): string | null {
  * Shows the parsed trip summary and lets the user confirm or go back.
  * On confirm, POSTs to /api/trips to persist the trip, then navigates to /dashboard.
  */
-export function ReviewTrip({ parsedData, rawText, onBack }: ReviewTripProps) {
+export function ReviewTrip({ parsedData, rawText, packingList, onBack }: ReviewTripProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +49,7 @@ export function ReviewTrip({ parsedData, rawText, onBack }: ReviewTripProps) {
       const res = await fetch("/api/trips", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ parsedData, rawText }),
+        body: JSON.stringify({ parsedData, rawText, packingList }),
       });
 
       const data = await res.json();

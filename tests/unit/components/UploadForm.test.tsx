@@ -15,6 +15,7 @@ const PARSED_RESPONSE = {
     days: [{ dayNumber: 1, date: null, title: "Day 1", stops: [] }],
   },
   rawText: "Day 1: Arrive in Rome",
+  packingList: [{ category: "Clothing", label: "Rain jacket" }],
 };
 
 describe("UploadForm", () => {

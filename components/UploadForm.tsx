@@ -3,11 +3,12 @@
 import { useState, useRef, useEffect } from "react";
 import { FileText, Link as LinkIcon, AlignLeft, Upload, Loader2 } from "lucide-react";
 import type { ParsedItinerary } from "@/types/itinerary";
+import type { PackingItem } from "@/lib/prompts/packing-list";
 
 type TabId = "text" | "file" | "url";
 
 interface UploadFormProps {
-  onParsed: (data: { parsedData: ParsedItinerary; rawText: string }) => void;
+  onParsed: (data: { parsedData: ParsedItinerary; rawText: string; packingList: PackingItem[] }) => void;
 }
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
@@ -17,14 +18,13 @@ const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
 ];
 
 const STAGES = [
-  { label: "Uploading your itinerary",              threshold: 0 },
-  { label: "Reading the document",                  threshold: 2_000 },
-  { label: "Identifying days and stops",            threshold: 5_000 },
-  { label: "Structuring your itinerary",            threshold: 10_000 },
-  { label: "Building your day-by-day plan",         threshold: 16_000 },
-  { label: "Looking up addresses and locations",    threshold: 22_000 },
-  { label: "Pinning stops to the map",              threshold: 30_000 },
-  { label: "Almost ready to explore",               threshold: 42_000 },
+  { label: "Uploading your itinerary",           threshold: 0 },
+  { label: "Reading the document",               threshold: 2_000 },
+  { label: "Parsing your itinerary",             threshold: 6_000 },
+  { label: "Building your day-by-day plan",      threshold: 12_000 },
+  { label: "Looking up addresses and locations", threshold: 20_000 },
+  { label: "Generating your packing list",       threshold: 30_000 },
+  { label: "Almost ready",                       threshold: 42_000 },
 ];
 
 /**
@@ -99,7 +99,7 @@ export function UploadForm({ onParsed }: UploadFormProps) {
         return;
       }
 
-      onParsed({ parsedData: data.parsedData, rawText: data.rawText });
+      onParsed({ parsedData: data.parsedData, rawText: data.rawText, packingList: data.packingList ?? [] });
     } catch {
       setError("Couldn't reach the server. Check your connection and try again.");
     } finally {
