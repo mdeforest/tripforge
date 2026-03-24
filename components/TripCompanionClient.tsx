@@ -66,6 +66,10 @@ export function TripCompanionClient({ trip, checklist }: TripCompanionClientProp
   const [editingStopId, setEditingStopId] = useState<string | null>(null);
   const [mapKey, setMapKey] = useState(0);
 
+  const editingStop = editingStopId
+    ? (tripState.days.flatMap((d) => d.stops).find((s) => s.id === editingStopId) ?? null)
+    : null;
+
   function handleLocationSave(stopId: string, address: string, lat: number, lng: number) {
     setTripState((prev) => ({
       ...prev,
@@ -164,17 +168,14 @@ export function TripCompanionClient({ trip, checklist }: TripCompanionClientProp
         </div>
       </nav>
 
-      {editingStopId && (() => {
-        const editingStop = tripState.days.flatMap((d) => d.stops).find((s) => s.id === editingStopId) ?? null;
-        return editingStop ? (
-          <EditLocationModal
-            stop={editingStop}
-            tripId={tripState.id}
-            onSave={handleLocationSave}
-            onClose={() => setEditingStopId(null)}
-          />
-        ) : null;
-      })()}
+      {editingStop && (
+        <EditLocationModal
+          stop={editingStop}
+          tripId={tripState.id}
+          onSave={handleLocationSave}
+          onClose={() => setEditingStopId(null)}
+        />
+      )}
     </div>
   );
 }
