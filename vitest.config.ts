@@ -14,6 +14,9 @@ export default defineConfig({
     // Make vi, describe, it, expect etc. available without importing them
     globals: true,
 
+    // Exclude worktrees so their duplicate test files don't pollute the suite
+    exclude: ["node_modules/**", ".worktrees/**", "dist/**"],
+
     // Coverage configuration (run with: npm run test:coverage)
     coverage: {
       provider: "v8",
