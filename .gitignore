@@ -40,3 +40,4 @@ next-env.d.ts
 docs/*itinerary*.pdf
 docs/*Itinerary*.pdf
 docs/examples/
+.worktrees/
