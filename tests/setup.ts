@@ -60,8 +60,10 @@ vi.mock("@/lib/prisma", () => ({
     },
     stop: {
       findMany: vi.fn(),
+      findUnique: vi.fn(),
       create: vi.fn(),
       createMany: vi.fn(),
+      update: vi.fn(),
     },
     checklistItem: {
       findMany: vi.fn(),
