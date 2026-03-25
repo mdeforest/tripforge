@@ -7,6 +7,7 @@ interface TripCardProps {
   destination: string;
   start_date: Date | string | null;
   end_date: Date | string | null;
+  sharedBy?: string;
 }
 
 /** Formats a date to "Mon D, YYYY". Returns null for null input. */
@@ -20,7 +21,7 @@ function formatDate(date: Date | string | null): string | null {
 }
 
 /** Trip card shown in the dashboard grid. Links to the trip companion page. */
-export function TripCard({ id, name, destination, start_date, end_date }: TripCardProps) {
+export function TripCard({ id, name, destination, start_date, end_date, sharedBy }: TripCardProps) {
   const startFormatted = formatDate(start_date);
   const endFormatted = formatDate(end_date);
 
@@ -48,6 +49,11 @@ export function TripCard({ id, name, destination, start_date, end_date }: TripCa
           <div className="flex items-center gap-2 text-sm text-muted">
             <Calendar className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span>{dateRange}</span>
+          </div>
+        )}
+        {sharedBy && (
+          <div className="flex items-center gap-2 text-sm text-muted">
+            <span>Shared by {sharedBy}</span>
           </div>
         )}
       </div>
