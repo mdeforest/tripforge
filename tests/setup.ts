@@ -48,6 +48,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     trip: {
       findMany: vi.fn(),
+      findFirst: vi.fn(),
       findUnique: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
@@ -72,6 +73,14 @@ vi.mock("@/lib/prisma", () => ({
       createMany: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
+    },
+    tripFollow: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      create: vi.fn(),
+      upsert: vi.fn(),
+      delete: vi.fn(),
+      deleteMany: vi.fn(),
     },
   },
 }));

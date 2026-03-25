@@ -23,6 +23,7 @@ model User {
   created_at    DateTime  @default(now())
 
   trips Trip[]
+  trip_follows TripFollow[] @relation("UserFollows")
 
   // NextAuth adapter fields
   emailVerified DateTime?
@@ -50,6 +51,9 @@ model Trip {
   parsed_data Json?
   packing_list Json?
   created_at  DateTime  @default(now())
+
+  share_token  String?     @unique
+  trip_follows TripFollow[]
 
   user           User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
   days           Day[]
@@ -174,4 +178,23 @@ model VerificationToken {
 
   @@unique([identifier, token])
   @@map("verification_tokens")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TRIP FOLLOWS
+// Tracks which users are following (have saved) a shared trip.
+// ─────────────────────────────────────────────────────────────────────────────
+model TripFollow {
+  id          String   @id @default(cuid())
+  follower_id String
+  trip_id     String
+  created_at  DateTime @default(now())
+
+  follower User @relation("UserFollows", fields: [follower_id], references: [id], onDelete: Cascade)
+  trip     Trip @relation(fields: [trip_id], references: [id], onDelete: Cascade)
+
+  @@unique([follower_id, trip_id])
+  @@index([follower_id])
+  @@index([trip_id])
+  @@map("trip_follows")
 }
