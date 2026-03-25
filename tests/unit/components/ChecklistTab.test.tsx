@@ -262,3 +262,32 @@ describe("ChecklistTab", () => {
     );
   });
 });
+
+describe("ChecklistTab — readOnly mode", () => {
+  it("disables all checkboxes when readOnly=true", () => {
+    render(<ChecklistTab {...DEFAULT_PROPS} readOnly={true} />);
+    screen.getAllByRole("checkbox").forEach((cb) => expect(cb).toBeDisabled());
+  });
+
+  it("hides the Generate packing list button when readOnly=true", () => {
+    render(<ChecklistTab tripId="trip-1" initialItems={[]} readOnly={true} />);
+    expect(screen.queryByRole("button", { name: /generate/i })).not.toBeInTheDocument();
+  });
+
+  it("hides the Add item section when readOnly=true", () => {
+    render(<ChecklistTab {...DEFAULT_PROPS} readOnly={true} />);
+    // The "Add item" button or form input should not be present
+    expect(screen.queryByPlaceholderText(/add/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add/i })).not.toBeInTheDocument();
+  });
+
+  it("hides delete buttons when readOnly=true", () => {
+    render(<ChecklistTab {...DEFAULT_PROPS} readOnly={true} />);
+    expect(screen.queryAllByRole("button", { name: /delete/i })).toHaveLength(0);
+  });
+
+  it("shows all controls normally when readOnly is omitted", () => {
+    render(<ChecklistTab {...DEFAULT_PROPS} />);
+    screen.getAllByRole("checkbox").forEach((cb) => expect(cb).not.toBeDisabled());
+  });
+});

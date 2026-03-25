@@ -7,6 +7,7 @@ import type { ChecklistItem } from "@/types/trip";
 interface ChecklistTabProps {
   tripId: string;
   initialItems: ChecklistItem[];
+  readOnly?: boolean;
 }
 
 const CATEGORIES = [
@@ -44,7 +45,7 @@ function groupByCategory(items: ChecklistItem[]): Map<string, ChecklistItem[]> {
  * - Items can be deleted with the trash icon (X).
  * - Progress indicator shows "X of Y packed".
  */
-export function ChecklistTab({ tripId, initialItems }: ChecklistTabProps) {
+export function ChecklistTab({ tripId, initialItems, readOnly = false }: ChecklistTabProps) {
   const [items, setItems] = useState<ChecklistItem[]>(initialItems);
   const [newLabel, setNewLabel] = useState("");
   const [newCategory, setNewCategory] = useState(CATEGORIES[0]);
@@ -203,82 +204,84 @@ export function ChecklistTab({ tripId, initialItems }: ChecklistTabProps) {
         </div>
       )}
 
-      {/* Add custom item form */}
-      <form
-        onSubmit={handleAdd}
-        className="pb-2 border-b border-parchment-dark space-y-2"
-        aria-label="Add custom item"
-      >
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted">Add item</p>
-        <div className="flex gap-2">
-          <div ref={categoryRef} className="relative w-28 shrink-0">
-            <button
-              type="button"
-              aria-label="Category"
-              aria-expanded={categoryOpen}
-              aria-haspopup="listbox"
-              onClick={() => setCategoryOpen((o) => !o)}
-              className="w-full flex items-center gap-1 rounded-lg border border-parchment-dark bg-white pl-3 pr-2 py-2 text-sm text-ink hover:border-parchment-deep focus:outline-none focus:ring-2 focus:ring-rust/40 transition-colors"
-            >
-              <span className="flex-1 truncate text-left">{newCategory}</span>
-              <ChevronDown
-                className={[
-                  "h-3.5 w-3.5 text-muted transition-transform duration-150",
-                  categoryOpen ? "rotate-180" : "",
-                ].join(" ")}
-                aria-hidden="true"
-              />
-            </button>
-
-            {categoryOpen && (
-              <ul
-                role="listbox"
+      {/* Add custom item form — hidden in readOnly mode */}
+      {!readOnly && (
+        <form
+          onSubmit={handleAdd}
+          className="pb-2 border-b border-parchment-dark space-y-2"
+          aria-label="Add custom item"
+        >
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted">Add item</p>
+          <div className="flex gap-2">
+            <div ref={categoryRef} className="relative w-28 shrink-0">
+              <button
+                type="button"
                 aria-label="Category"
-                className="absolute left-0 top-full mt-1 z-30 min-w-full rounded-lg border border-parchment-dark bg-white shadow-md py-1 overflow-hidden"
+                aria-expanded={categoryOpen}
+                aria-haspopup="listbox"
+                onClick={() => setCategoryOpen((o) => !o)}
+                className="w-full flex items-center gap-1 rounded-lg border border-parchment-dark bg-white pl-3 pr-2 py-2 text-sm text-ink hover:border-parchment-deep focus:outline-none focus:ring-2 focus:ring-rust/40 transition-colors"
               >
-                {CATEGORIES.map((cat) => (
-                  <li
-                    key={cat}
-                    role="option"
-                    aria-selected={cat === newCategory}
-                    onMouseDown={(e) => {
-                      e.preventDefault(); // prevent blur on label input
-                      setNewCategory(cat);
-                      setCategoryOpen(false);
-                    }}
-                    className={[
-                      "px-3 py-1.5 text-sm cursor-pointer select-none",
-                      cat === newCategory
-                        ? "bg-parchment text-rust font-medium"
-                        : "text-ink hover:bg-parchment",
-                    ].join(" ")}
-                  >
-                    {cat}
-                  </li>
-                ))}
-              </ul>
-            )}
+                <span className="flex-1 truncate text-left">{newCategory}</span>
+                <ChevronDown
+                  className={[
+                    "h-3.5 w-3.5 text-muted transition-transform duration-150",
+                    categoryOpen ? "rotate-180" : "",
+                  ].join(" ")}
+                  aria-hidden="true"
+                />
+              </button>
+
+              {categoryOpen && (
+                <ul
+                  role="listbox"
+                  aria-label="Category"
+                  className="absolute left-0 top-full mt-1 z-30 min-w-full rounded-lg border border-parchment-dark bg-white shadow-md py-1 overflow-hidden"
+                >
+                  {CATEGORIES.map((cat) => (
+                    <li
+                      key={cat}
+                      role="option"
+                      aria-selected={cat === newCategory}
+                      onMouseDown={(e) => {
+                        e.preventDefault(); // prevent blur on label input
+                        setNewCategory(cat);
+                        setCategoryOpen(false);
+                      }}
+                      className={[
+                        "px-3 py-1.5 text-sm cursor-pointer select-none",
+                        cat === newCategory
+                          ? "bg-parchment text-rust font-medium"
+                          : "text-ink hover:bg-parchment",
+                      ].join(" ")}
+                    >
+                      {cat}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <input
+              ref={labelInputRef}
+              type="text"
+              value={newLabel}
+              onChange={(e) => setNewLabel(e.target.value)}
+              placeholder="Item name…"
+              aria-label="New item name"
+              className="flex-1 min-w-0 rounded-lg border border-parchment-dark bg-white px-3 py-2 text-sm text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-rust/40"
+            />
+            <button
+              type="submit"
+              disabled={!newLabel.trim() || isAdding}
+              aria-label="Add item"
+              className="shrink-0 flex items-center gap-1.5 rounded-lg bg-rust px-3 py-2 text-sm font-medium text-white hover:bg-rust-dark disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Add
+            </button>
           </div>
-          <input
-            ref={labelInputRef}
-            type="text"
-            value={newLabel}
-            onChange={(e) => setNewLabel(e.target.value)}
-            placeholder="Item name…"
-            aria-label="New item name"
-            className="flex-1 min-w-0 rounded-lg border border-parchment-dark bg-white px-3 py-2 text-sm text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-rust/40"
-          />
-          <button
-            type="submit"
-            disabled={!newLabel.trim() || isAdding}
-            aria-label="Add item"
-            className="shrink-0 flex items-center gap-1.5 rounded-lg bg-rust px-3 py-2 text-sm font-medium text-white hover:bg-rust-dark disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            Add
-          </button>
-        </div>
-      </form>
+        </form>
+      )}
 
       {/* Empty state */}
       {totalCount === 0 && (
@@ -306,6 +309,7 @@ export function ChecklistTab({ tripId, initialItems }: ChecklistTabProps) {
                     id={`item-${item.id}`}
                     checked={item.checked}
                     onChange={(e) => handleToggle(item.id, e.target.checked)}
+                    disabled={readOnly}
                     className="h-4 w-4 rounded border-parchment-deep text-rust accent-rust shrink-0"
                     aria-label={item.label}
                   />
@@ -329,13 +333,15 @@ export function ChecklistTab({ tripId, initialItems }: ChecklistTabProps) {
                       <Info className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
                   )}
-                  <button
-                    onClick={() => handleDelete(item.id)}
-                    aria-label={`Delete ${item.label}`}
-                    className="shrink-0 text-parchment-deep hover:text-rust transition-colors p-0.5"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                  </button>
+                  {!readOnly && (
+                    <button
+                      onClick={() => handleDelete(item.id)}
+                      aria-label={`Delete ${item.label}`}
+                      className="shrink-0 text-parchment-deep hover:text-rust transition-colors p-0.5"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                  )}
                 </div>
                 {tooltipId === item.id && item.reason && (
                   <div

@@ -194,11 +194,9 @@ export function TripCompanionClient({
             destination={tripState.destination}
           />
         )}
-        {activeTab === "checklist" && (() => {
-          // readOnly prop will be wired in Task 10; cast until then
-          const ChecklistTabAny = ChecklistTab as React.ComponentType<{ tripId: string; initialItems: ChecklistItem[]; readOnly?: boolean }>;
-          return <ChecklistTabAny tripId={tripState.id} initialItems={checklist} readOnly={readOnly} />;
-        })()}
+        {activeTab === "checklist" && (
+          <ChecklistTab tripId={tripState.id} initialItems={checklist} readOnly={readOnly} />
+        )}
       </main>
 
       {/* Fixed bottom tab bar */}
