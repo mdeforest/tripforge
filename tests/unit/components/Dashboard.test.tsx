@@ -42,6 +42,7 @@ const MOCK_TRIPS = [
 describe("DashboardPage", () => {
   beforeEach(() => {
     vi.mocked(getServerSession).mockResolvedValue(MOCK_SESSION as never);
+    vi.mocked(prisma.tripFollow.findMany).mockResolvedValue([]);
   });
 
   // ── Empty state ────────────────────────────────────────────────────────────
@@ -120,5 +121,67 @@ describe("DashboardPage", () => {
     }
 
     expect(vi.mocked(redirect)).toHaveBeenCalledWith("/login");
+  });
+});
+
+const MOCK_FOLLOWS = [
+  {
+    id: "follow-1",
+    follower_id: "user-1",
+    trip_id: "trip-3",
+    created_at: new Date(),
+    trip: {
+      id: "trip-3",
+      name: "Tokyo Adventure",
+      destination: "Tokyo, Japan",
+      start_date: null,
+      end_date: null,
+      created_at: new Date(),
+      user: { name: "Alex" },
+    },
+  },
+];
+
+describe("DashboardPage — Saved Trips", () => {
+  beforeEach(() => {
+    vi.mocked(getServerSession).mockResolvedValue(MOCK_SESSION as never);
+  });
+
+  it("renders 'Saved Trips' section with attribution when user has follows", async () => {
+    vi.mocked(prisma.trip.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.tripFollow.findMany).mockResolvedValue(MOCK_FOLLOWS as never);
+    const { default: DashboardPage } = await import("@/app/(app)/dashboard/page");
+    const jsx = await DashboardPage();
+    render(jsx as React.ReactElement);
+    expect(screen.getByText("Saved Trips")).toBeInTheDocument();
+    expect(screen.getByText("Tokyo Adventure")).toBeInTheDocument();
+    expect(screen.getByText(/Shared by Alex/i)).toBeInTheDocument();
+  });
+
+  it("does not render 'Saved Trips' when user has no follows", async () => {
+    vi.mocked(prisma.trip.findMany).mockResolvedValue(MOCK_TRIPS as never);
+    vi.mocked(prisma.tripFollow.findMany).mockResolvedValue([]);
+    const { default: DashboardPage } = await import("@/app/(app)/dashboard/page");
+    const jsx = await DashboardPage();
+    render(jsx as React.ReactElement);
+    expect(screen.queryByText("Saved Trips")).not.toBeInTheDocument();
+  });
+
+  it("shows empty-state CTA only when both owned and followed trips are empty", async () => {
+    vi.mocked(prisma.trip.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.tripFollow.findMany).mockResolvedValue([]);
+    const { default: DashboardPage } = await import("@/app/(app)/dashboard/page");
+    const jsx = await DashboardPage();
+    render(jsx as React.ReactElement);
+    expect(screen.getByText(/no trips yet/i)).toBeInTheDocument();
+  });
+
+  it("does not show empty-state CTA when user has no owned trips but has follows", async () => {
+    vi.mocked(prisma.trip.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.tripFollow.findMany).mockResolvedValue(MOCK_FOLLOWS as never);
+    const { default: DashboardPage } = await import("@/app/(app)/dashboard/page");
+    const jsx = await DashboardPage();
+    render(jsx as React.ReactElement);
+    expect(screen.queryByText(/no trips yet/i)).not.toBeInTheDocument();
   });
 });
