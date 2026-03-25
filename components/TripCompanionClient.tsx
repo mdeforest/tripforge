@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -9,6 +10,8 @@ import {
   Map,
   MessageCircle,
   CheckSquare,
+  Share2,
+  BookmarkMinus,
 } from "lucide-react";
 import { ItineraryTab } from "@/components/ItineraryTab";
 import { MapTab } from "@/components/MapTab";
@@ -30,6 +33,8 @@ const TABS: { id: Tab; label: string; Icon: React.ElementType }[] = [
 interface TripCompanionClientProps {
   trip: TripDetail;
   checklist: ChecklistItem[];
+  readOnly?: boolean;
+  ownerName?: string;
 }
 
 /**
@@ -56,7 +61,12 @@ function getDefaultDayNumber(
  * Manages the active tab and the selected day (shared across tabs so switching
  * tabs preserves the day you were viewing).
  */
-export function TripCompanionClient({ trip, checklist }: TripCompanionClientProps) {
+export function TripCompanionClient({
+  trip,
+  checklist,
+  readOnly = false,
+  ownerName,
+}: TripCompanionClientProps) {
   const [activeTab, setActiveTab] = useState<Tab>("itinerary");
   const [selectedDay, setSelectedDay] = useState<number>(
     () => getDefaultDayNumber(trip.days, trip.start_date, trip.end_date)
@@ -70,6 +80,10 @@ export function TripCompanionClient({ trip, checklist }: TripCompanionClientProp
     ? (tripState.days.flatMap((d) => d.stops).find((s) => s.id === editingStopId) ?? null)
     : null;
 
+  const router = useRouter();
+  const [shareCopied, setShareCopied] = useState(false);
+  const [unsaving, setUnsaving] = useState(false);
+
   function handleLocationSave(stopId: string, address: string, lat: number, lng: number) {
     setTripState((prev) => ({
       ...prev,
@@ -82,6 +96,25 @@ export function TripCompanionClient({ trip, checklist }: TripCompanionClientProp
     }));
     setMapKey((k) => k + 1);
     setEditingStopId(null);
+  }
+
+  async function handleShare() {
+    const res = await fetch(`/api/trips/${tripState.id}/share`, { method: "POST" });
+    if (!res.ok) return;
+    const { url } = await res.json();
+    await navigator.clipboard.writeText(url);
+    setShareCopied(true);
+    setTimeout(() => setShareCopied(false), 2000);
+  }
+
+  async function handleUnsave() {
+    setUnsaving(true);
+    const res = await fetch(`/api/trips/${tripState.id}/follow`, { method: "DELETE" });
+    if (res.ok || res.status === 204) {
+      router.push("/dashboard");
+    } else {
+      setUnsaving(false);
+    }
   }
 
   return (
@@ -100,11 +133,36 @@ export function TripCompanionClient({ trip, checklist }: TripCompanionClientProp
             <h1 className="font-serif text-xl font-semibold text-ink leading-tight truncate">
               {tripState.name}
             </h1>
-            <div className="flex items-center gap-1.5 mt-0.5 text-sm text-muted">
-              <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span className="truncate">{tripState.destination}</span>
-            </div>
+            {readOnly ? (
+              <div className="flex items-center gap-1.5 mt-0.5 text-sm text-muted">
+                <span className="truncate">Saved trip · Shared by {ownerName}</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 mt-0.5 text-sm text-muted">
+                <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span className="truncate">{tripState.destination}</span>
+              </div>
+            )}
           </div>
+          {readOnly ? (
+            <button
+              onClick={handleUnsave}
+              disabled={unsaving}
+              className="mt-0.5 ml-auto shrink-0 text-muted hover:text-rust transition-colors disabled:opacity-60"
+              aria-label="Unsave trip"
+            >
+              <BookmarkMinus className="h-5 w-5" />
+            </button>
+          ) : (
+            <button
+              onClick={handleShare}
+              className="mt-0.5 ml-auto shrink-0 text-muted hover:text-ink transition-colors"
+              aria-label={shareCopied ? "Link copied!" : "Share trip"}
+              title={shareCopied ? "Link copied!" : "Share trip"}
+            >
+              <Share2 className="h-5 w-5" />
+            </button>
+          )}
         </div>
       </header>
 
@@ -115,7 +173,7 @@ export function TripCompanionClient({ trip, checklist }: TripCompanionClientProp
             days={tripState.days}
             selectedDay={selectedDay}
             onSelectDay={setSelectedDay}
-            onEditStop={(id) => setEditingStopId(id)}
+            onEditStop={readOnly ? undefined : (id) => setEditingStopId(id)}
           />
         )}
         {activeTab === "map" && (
@@ -126,7 +184,7 @@ export function TripCompanionClient({ trip, checklist }: TripCompanionClientProp
             onSelectDay={setSelectedDay}
             savedViewport={mapViewportRef.current}
             onViewportChange={(vp) => { mapViewportRef.current = vp; }}
-            onEditStop={(id) => setEditingStopId(id)}
+            onEditStop={readOnly ? undefined : (id) => setEditingStopId(id)}
           />
         )}
         {activeTab === "chat" && (
@@ -136,9 +194,11 @@ export function TripCompanionClient({ trip, checklist }: TripCompanionClientProp
             destination={tripState.destination}
           />
         )}
-        {activeTab === "checklist" && (
-          <ChecklistTab tripId={tripState.id} initialItems={checklist} />
-        )}
+        {activeTab === "checklist" && (() => {
+          // readOnly prop will be wired in Task 10; cast until then
+          const ChecklistTabAny = ChecklistTab as React.ComponentType<{ tripId: string; initialItems: ChecklistItem[]; readOnly?: boolean }>;
+          return <ChecklistTabAny tripId={tripState.id} initialItems={checklist} readOnly={readOnly} />;
+        })()}
       </main>
 
       {/* Fixed bottom tab bar */}
@@ -168,7 +228,7 @@ export function TripCompanionClient({ trip, checklist }: TripCompanionClientProp
         </div>
       </nav>
 
-      {editingStop && (
+      {!readOnly && editingStop && (
         <EditLocationModal
           stop={editingStop}
           tripId={tripState.id}
