@@ -24,6 +24,7 @@ export default async function TripPage({ params }: TripPageProps) {
       destination: true,
       start_date: true,
       end_date: true,
+      user: { select: { name: true } },
       days: {
         orderBy: { day_number: "asc" },
         select: {
@@ -52,7 +53,26 @@ export default async function TripPage({ params }: TripPageProps) {
     },
   });
 
-  if (!trip || trip.user_id !== session.user.id) notFound();
+  if (!trip) notFound();
+
+  const isOwner = trip.user_id === session.user.id;
+
+  const follow = !isOwner
+    ? await prisma.tripFollow.findUnique({
+        where: {
+          follower_id_trip_id: {
+            follower_id: session.user.id,
+            trip_id: trip.id,
+          },
+        },
+      })
+    : null;
+
+  if (!isOwner && !follow) notFound();
+
+  const ownerName: string | undefined = isOwner
+    ? undefined
+    : (trip.user.name || "a TripForge user");
 
   // Run geocoding backfill and checklist fetch in parallel.
   const [, checklistRaw] = await Promise.all([
@@ -142,5 +162,12 @@ export default async function TripPage({ params }: TripPageProps) {
     })),
   };
 
-  return <TripCompanionClient trip={tripDetail} checklist={checklist} />;
+  return (
+    <TripCompanionClient
+      trip={tripDetail}
+      checklist={checklist}
+      readOnly={!isOwner}
+      ownerName={ownerName}
+    />
+  );
 }

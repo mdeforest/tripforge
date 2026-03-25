@@ -61,4 +61,33 @@ describe("TripCard", () => {
     expect(link).toHaveTextContent("Summer in Italy");
     expect(link).toHaveTextContent("Rome, Italy");
   });
+
+  // ── sharedBy attribution ────────────────────────────────────────────────────
+
+  it("renders 'Shared by' attribution when sharedBy prop is set", () => {
+    render(
+      <TripCard
+        id="trip-1"
+        name="Italy Trip"
+        destination="Rome, Italy"
+        start_date={null}
+        end_date={null}
+        sharedBy="Matt"
+      />
+    );
+    expect(screen.getByText(/Shared by Matt/i)).toBeInTheDocument();
+  });
+
+  it("does not render attribution when sharedBy is not set", () => {
+    render(
+      <TripCard
+        id="trip-1"
+        name="Italy Trip"
+        destination="Rome, Italy"
+        start_date={null}
+        end_date={null}
+      />
+    );
+    expect(screen.queryByText(/Shared by/i)).not.toBeInTheDocument();
+  });
 });

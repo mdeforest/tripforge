@@ -107,11 +107,23 @@ export async function POST(
     );
   }
 
-  if (trip.user_id !== session.user.id) {
-    return new Response(
-      JSON.stringify({ error: "You do not have access to this trip.", code: "FORBIDDEN" }),
-      { status: 403, headers: { "Content-Type": "application/json" } }
-    );
+  const isOwner = trip.user_id === session.user.id;
+  if (!isOwner) {
+    const follow = await prisma.tripFollow.findUnique({
+      where: {
+        follower_id_trip_id: {
+          follower_id: session.user.id,
+          trip_id: trip.id,
+        },
+      },
+      select: { id: true },
+    });
+    if (!follow) {
+      return new Response(
+        JSON.stringify({ error: "You do not have access to this trip.", code: "FORBIDDEN" }),
+        { status: 403, headers: { "Content-Type": "application/json" } }
+      );
+    }
   }
 
   // Serialize dates for the system prompt builder

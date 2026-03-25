@@ -99,3 +99,23 @@ describe("GET /api/trips/[id]", () => {
     expect(body.code).toBe("INTERNAL_ERROR");
   });
 });
+
+describe("GET /api/trips/[id] — follower access", () => {
+  it("returns 200 for a follower", async () => {
+    vi.mocked(getServerSession).mockResolvedValue({ user: { id: "follower-1" } } as never);
+    vi.mocked(prisma.trip.findUnique).mockResolvedValue({ ...MOCK_TRIP, user_id: "owner-1" } as never);
+    vi.mocked(prisma.tripFollow.findUnique).mockResolvedValue({
+      id: "f1", follower_id: "follower-1", trip_id: "trip-1", created_at: new Date(),
+    } as never);
+    const res = await GET(makeRequest("trip-1"), { params: { id: "trip-1" } });
+    expect(res.status).toBe(200);
+  });
+
+  it("returns 403 for authenticated non-owner non-follower", async () => {
+    vi.mocked(getServerSession).mockResolvedValue({ user: { id: "stranger-1" } } as never);
+    vi.mocked(prisma.trip.findUnique).mockResolvedValue({ ...MOCK_TRIP, user_id: "owner-1" } as never);
+    vi.mocked(prisma.tripFollow.findUnique).mockResolvedValue(null);
+    const res = await GET(makeRequest("trip-1"), { params: { id: "trip-1" } });
+    expect(res.status).toBe(403);
+  });
+});

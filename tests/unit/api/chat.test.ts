@@ -150,3 +150,45 @@ describe("POST /api/trips/[id]/chat", () => {
     expect(body.code).toBe("INTERNAL_ERROR");
   });
 });
+
+describe("POST /api/trips/[id]/chat — follower access", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    mockGenerateContentStream.mockReset();
+    vi.mocked(getServerSession).mockReset();
+    vi.mocked(prisma.trip.findUnique).mockReset();
+  });
+
+  it("returns streaming response for a follower", async () => {
+    vi.mocked(getServerSession).mockResolvedValue({ user: { id: "follower-1" } } as never);
+    vi.mocked(prisma.trip.findUnique).mockResolvedValue({ ...TRIP_DB, user_id: "owner-1" } as never);
+    vi.mocked(prisma.tripFollow.findUnique).mockResolvedValue({
+      id: "f1", follower_id: "follower-1", trip_id: "trip-1", created_at: new Date(),
+    } as never);
+    mockGenerateContentStream.mockResolvedValue(makeStream("Hello!"));
+
+    const { POST } = await import("@/app/api/trips/[id]/chat/route");
+    const req = new Request("http://localhost/api/trips/trip-1/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: [{ role: "user", content: "Hello" }] }),
+    });
+    const res = await POST(req, { params: { id: "trip-1" } });
+    expect(res.status).not.toBe(403);
+  });
+
+  it("returns 403 for authenticated non-owner non-follower", async () => {
+    vi.mocked(getServerSession).mockResolvedValue({ user: { id: "stranger-1" } } as never);
+    vi.mocked(prisma.trip.findUnique).mockResolvedValue({ ...TRIP_DB, user_id: "owner-1" } as never);
+    vi.mocked(prisma.tripFollow.findUnique).mockResolvedValue(null);
+
+    const { POST } = await import("@/app/api/trips/[id]/chat/route");
+    const req = new Request("http://localhost/api/trips/trip-1/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: [{ role: "user", content: "Hello" }] }),
+    });
+    const res = await POST(req, { params: { id: "trip-1" } });
+    expect(res.status).toBe(403);
+  });
+});

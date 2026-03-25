@@ -14,18 +14,30 @@ export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
-  const trips = await prisma.trip.findMany({
-    where: { user_id: session.user.id },
-    select: {
-      id: true,
-      name: true,
-      destination: true,
-      start_date: true,
-      end_date: true,
-      created_at: true,
-    },
-    orderBy: { created_at: "desc" },
-  });
+  const [trips, followedRaw] = await Promise.all([
+    prisma.trip.findMany({
+      where: { user_id: session.user.id },
+      select: {
+        id: true,
+        name: true,
+        destination: true,
+        start_date: true,
+        end_date: true,
+        created_at: true,
+      },
+      orderBy: { created_at: "desc" },
+    }),
+    prisma.tripFollow.findMany({
+      where: { follower_id: session.user.id },
+      include: { trip: { include: { user: { select: { name: true } } } } },
+      orderBy: { created_at: "desc" },
+    }),
+  ]);
+
+  const followedTrips = followedRaw.map((f) => ({
+    ...f.trip,
+    sharedBy: f.trip.user.name || "a TripForge user",
+  }));
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
@@ -34,9 +46,9 @@ export default async function DashboardPage() {
         <div>
           <h1 className="font-serif text-3xl font-semibold text-ink">My Trips</h1>
           <p className="mt-1 text-sm text-muted">
-            {trips.length === 0
+            {trips.length === 0 && followedTrips.length === 0
               ? "Upload your first itinerary to get started."
-              : `${trips.length} trip${trips.length !== 1 ? "s" : ""}`}
+              : `${trips.length} trip${trips.length !== 1 ? "s" : ""}${followedTrips.length > 0 ? ` · ${followedTrips.length} saved` : ""}`}
           </p>
         </div>
         <Link
@@ -48,8 +60,8 @@ export default async function DashboardPage() {
         </Link>
       </div>
 
-      {/* Empty state */}
-      {trips.length === 0 ? (
+      {/* Content */}
+      {trips.length === 0 && followedTrips.length === 0 ? (
         <div className="mt-16 flex flex-col items-center gap-4 text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-parchment">
             <Compass className="h-8 w-8 text-rust" aria-hidden="true" />
@@ -69,11 +81,25 @@ export default async function DashboardPage() {
           </Link>
         </div>
       ) : (
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {trips.map((trip) => (
-            <TripCard key={trip.id} {...trip} />
-          ))}
-        </div>
+        <>
+          {trips.length > 0 && (
+            <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {trips.map((trip) => (
+                <TripCard key={trip.id} {...trip} />
+              ))}
+            </div>
+          )}
+          {followedTrips.length > 0 && (
+            <div className="mt-10">
+              <h2 className="font-serif text-2xl font-semibold text-ink">Saved Trips</h2>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {followedTrips.map((trip) => (
+                  <TripCard key={trip.id} {...trip} sharedBy={trip.sharedBy} />
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
